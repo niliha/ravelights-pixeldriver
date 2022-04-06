@@ -3,34 +3,36 @@
 #include <ArtnetWifi.h>
 #include <FastLED.h>
 #include <array>
+#include <numeric>
 
 #include "Network.hpp"
 #include "WifiCredentials.hpp"
 
-typedef struct Output {
-    const int pinNumber;
-    const int lightCount;
-    const int pixelCount;
-    constexpr Output(int pinNumber, int lightCount)
-        : pinNumber(pinNumber), lightCount(lightCount), pixelCount(lightCount * PIXELS_PER_LIGHT) {
-    }
-    static const int PIXELS_PER_LIGHT = 144;
-} Output;
-
-// FastLED constants
-// Specify outputs, i.e. the used GPIO pins and how many lights are connected to each pin.
-// A light consists of Output::PIXELS_PER_LIGHT pixels.
+/* BEGIN USER CONFIG */
+// Specify the maximum number of pins to which lights are to be connected in a specific scenario.
+// Right now this is fixed to 4.
+// If a different amount must be used, setupFastled() must be adapted accordingly.
+const int MAX_PIN_COUNT = 4;
+// The following must be configured for the concrete setup.
+// TODO: Receive lightsPerPin through artnet and store/load to/from non-volatile storage.
+// Specify the amount of individually addressable pixels per "light"
+const int PIXELS_PER_LIGHT = 144;
+// Specify the GPIO pins to which lights are connected.
+constexpr std::array<int, MAX_PIN_COUNT> PINS = {19, 18, 22, 21};
+// For each pin, specify how many lights are connected.
 // If there are no lights connected to a specific, set lightCount to 0.
-constexpr Output OUTPUT1(/* pinNumber = */ 19, /* lightCount = */ 1);
-constexpr Output OUTPUT2(18, 1);
-constexpr Output OUTPUT3(22, 1);
-constexpr Output OUTPUT4(21, 1);
-const EOrder RGB_ORDER = EOrder::RGB;
-constexpr int PIXEL_COUNT =
-    OUTPUT1.pixelCount + OUTPUT2.pixelCount + OUTPUT3.pixelCount + OUTPUT4.pixelCount;
+std::array<int, MAX_PIN_COUNT> lightsPerPin = {1, 1, 1, 1};
 uint8_t MAXIMUM_BRIGHTNESS = 255;
+const EOrder RGB_ORDER = EOrder::RGB;
+// Whether to print debug information.
+const bool DO_DEBUG = false;
+/* END USER CONFIG */
 
-std::array<CRGB, PIXEL_COUNT> pixels;
+int PIXEL_COUNT = PIXELS_PER_LIGHT *
+                  std::accumulate(lightsPerPin.begin(), lightsPerPin.end(), 0, std::plus<int>());
+// The vector holding color values for each pixel.
+// It must not be reallocated after setupFastLed() has been called!
+std::vector<CRGB> pixels(PIXEL_COUNT);
 
 // Artnet constants
 const unsigned ARTNET_CHANNEL_COUNT = PIXEL_COUNT * 3;
@@ -39,7 +41,7 @@ const int CHANNELS_PER_UNIVERSE = 512;
 const int ARTNET_UNIVERSE_COUNT =
     ARTNET_CHANNEL_COUNT / CHANNELS_PER_UNIVERSE + ((ARTNET_CHANNEL_COUNT % 512) ? 1 : 0);
 
-std::array<bool, ARTNET_UNIVERSE_COUNT> universeRecvIndicators;
+std::vector<bool> universeRecvIndicators(ARTNET_UNIVERSE_COUNT, false);
 bool writeFrameToLeds = false;
 ArtnetWifi artnet;
 
@@ -47,8 +49,6 @@ ArtnetWifi artnet;
 TaskHandle_t fastLedTaskHandle;
 TaskHandle_t artnetTaskHandle;
 SemaphoreHandle_t showSemaphore = NULL;
-
-const bool DO_DEBUG = true;
 
 void initNetworking() {
     // Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
@@ -85,7 +85,9 @@ void onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8
         Serial.println(length);
     }
     if (universeIndex >= ARTNET_UNIVERSE_COUNT) {
-        Serial.println("Error: Received invalid universe index!");
+        if (DO_DEBUG) {
+            Serial.println("Error: Received invalid universe index!");
+        }
         return;
     }
     // Store which universe has got in
@@ -106,32 +108,35 @@ void onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8
     // Write to leds if all universes were received
     if (writeFrameToLeds) {
         //  Reset universeReceived to 0
-        for (bool &universeRecvIndicator : universeRecvIndicators) {
-            universeRecvIndicator = false;
-        }
+        std::fill(universeRecvIndicators.begin(), universeRecvIndicators.end(), false);
         // Signal to the fastled task that it can write to the leds
         xSemaphoreGive(showSemaphore);
     }
 }
 
 void setupFastLed() {
-    // We can't use a loop here since addLeds() parameters must be known at
+    // We can't use a loop here since addLeds() template parameters must be known at
     // compile-time
-    if (OUTPUT1.pixelCount > 0) {
-        FastLED.addLeds<WS2812, OUTPUT1.pinNumber, RGB_ORDER>(pixels.data(), 0, OUTPUT1.pixelCount);
+    int pixelOffset = 0;
+    if (lightsPerPin[0] > 0) {
+        FastLED.addLeds<WS2812, PINS[0], RGB_ORDER>(pixels.data(), pixelOffset,
+                                                    lightsPerPin[0] * PIXELS_PER_LIGHT);
+        pixelOffset += lightsPerPin[0] * PIXELS_PER_LIGHT;
     }
-    if (OUTPUT2.pixelCount > 0) {
-        FastLED.addLeds<WS2812, OUTPUT2.pinNumber, RGB_ORDER>(pixels.data(), OUTPUT1.pixelCount,
-                                                              OUTPUT2.pixelCount);
+    if (lightsPerPin[1] > 0) {
+        FastLED.addLeds<WS2812, PINS[1], RGB_ORDER>(pixels.data(), pixelOffset,
+                                                    lightsPerPin[1] * PIXELS_PER_LIGHT);
+        pixelOffset += lightsPerPin[1] * PIXELS_PER_LIGHT;
     }
-    if (OUTPUT3.pixelCount > 0) {
-        FastLED.addLeds<WS2812, OUTPUT3.pinNumber, RGB_ORDER>(
-            pixels.data(), OUTPUT1.pixelCount + OUTPUT2.pixelCount, OUTPUT3.pixelCount);
+    if (lightsPerPin[2] > 0) {
+        FastLED.addLeds<WS2812, PINS[2], RGB_ORDER>(pixels.data(), pixelOffset,
+                                                    lightsPerPin[2] * PIXELS_PER_LIGHT);
+        pixelOffset += lightsPerPin[2] * PIXELS_PER_LIGHT;
     }
-    if (OUTPUT4.pixelCount > 0) {
-        FastLED.addLeds<WS2812, OUTPUT4.pinNumber, RGB_ORDER>(
-            pixels.data(), OUTPUT1.pixelCount + OUTPUT2.pixelCount + OUTPUT3.pixelCount,
-            OUTPUT4.pixelCount);
+    if (lightsPerPin[3] > 0) {
+        FastLED.addLeds<WS2812, PINS[3], RGB_ORDER>(pixels.data(), pixelOffset,
+                                                    lightsPerPin[3] * PIXELS_PER_LIGHT);
+        pixelOffset += lightsPerPin[3] * PIXELS_PER_LIGHT;
     }
     // Set maximum brightness (0 - 255)
     FastLED.setBrightness(MAXIMUM_BRIGHTNESS);
