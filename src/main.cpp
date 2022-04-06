@@ -6,6 +6,7 @@
 #include <numeric>
 
 #include "Network.hpp"
+#include "PixelDriver.hpp"
 #include "WifiCredentials.hpp"
 
 /* BEGIN USER CONFIG */
@@ -205,6 +206,10 @@ void startTasks() {
 
 void setup() {
     Serial.begin(115200);
+    PixelDriver<MAX_PIN_COUNT, PINS, RGB_ORDER> PixelDriver(lightsPerPin);
+    while (true) {
+    }
+
     setupFastLed();
     testLeds();
     initNetworking();
