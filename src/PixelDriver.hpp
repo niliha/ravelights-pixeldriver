@@ -1,20 +1,19 @@
 #pragma once
 
+#include <ArtnetWifi.h>
+#define FASTLED_ESP32_I2S  // Alternative parallel output driver
 #include <FastLED.h>
+#include <numeric>
+#include <set>
 
 template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDER = RGB>
 class PixelDriver {
  public:
     PixelDriver(const std::array<int, PIN_COUNT> &lightsPerPin, int pixelsPerLight = 144,
                 uint8_t maxBrightness = 255, bool debug = false)
-        : lightsPerPin_(lightsPerPin), MAX_BRIGHTNESS_(maxBrightness), DEBUG_(debug),
-          PIXELS_PER_LIGHT_(pixelsPerLight),
-          pixels_(pixelsPerLight *
-                  std::accumulate(lightsPerPin.begin(), lightsPerPin.end(), 0, std::plus<int>())) {
-        setupFastled();
-        while (true) {
-            testLeds();
-        }
+        : MAX_BRIGHTNESS_(maxBrightness), DEBUG_(debug), PIXELS_PER_LIGHT_(pixelsPerLight),
+          showSemaphore_(xSemaphoreCreateBinary()) {
+        configure(lightsPerPin);
     }
 
     void testLeds() {
@@ -34,40 +33,164 @@ class PixelDriver {
         delay(2000);
     }
 
+    void start() {
+        assert(showSemaphore_ != nullptr && "showSemaphore_ must not be null!");
+        // Start artnet task on core 0 (together with the WIFI service)
+        xTaskCreatePinnedToCore(artnetTaskWrapper, /* Task function. */
+                                "artnetTask",      /* name of task. */
+                                10000,             /* Stack size of task */
+                                this,              /* parameter of the task */
+                                1,                 /* priority of the task */
+                                NULL,              /* Task handle to keep track of
+                                                   /* pin task to core 0 */
+                                0);
+        delay(100);  // giving artnetTask some time to finish its business..
+                     // Start the fastled task on core 1.
+        // Therefore it is not affected by WIFI interrupts from core 0 while writing to the LEDs
+        // (avoiding flickering).
+        xTaskCreatePinnedToCore(fastledTaskWrapper, /* Task function. */
+                                "fastledTask",      /* name of task. */
+                                10000,              /* Stack size of task */
+                                this,               /* parameter of the task */
+                                1,                  /* priority of the task */
+                                NULL,               /* Task handle to keep track of
+                                                    /* pin task to core 0 */
+                                1);
+    }
+
+    void stop() {
+        // TODO
+    }
+
  private:
+    /* "Constants" */
+    // The number of individually addressable pixels per "light"
     const int PIXELS_PER_LIGHT_;
-    std::array<int, PIN_COUNT> lightsPerPin_;
     const uint8_t MAX_BRIGHTNESS_;
     const bool DEBUG_;
-    std::vector<CRGB> pixels_;
+    // Number of required Artnet universes. Set in configure().
+    int UNIVERSE_COUNT_;
+    // Total number of pixels across all lights. Set in configure().
+    int PIXEL_COUNT_;
 
-    void setupFastled() {
+    /* Data structures for FastLed and ArtnetWifi */
+    // The vector holding color values for each pixel.
+    // It's size is set in configure() and must not be changed afterwards!
+    std::vector<CRGB> pixels_;
+    std::set<int> receivedUniverses_;
+
+    // The ArtnetWifi instance
+    ArtnetWifi artnet_;
+
+    // Binary semaphore that is initialized (already taken) in initializer list.
+    // It is used by the artnet task to signal the fastled task to write to the leds once all
+    // universes of a single frame were received.
+    SemaphoreHandle_t const showSemaphore_;
+
+    void configure(const std::array<int, PIN_COUNT> &lightsPerPin) {
+        PIXEL_COUNT_ =
+            PIXELS_PER_LIGHT_ * std::accumulate(lightsPerPin.begin(), lightsPerPin.end(), 0);
+        pixels_.resize(PIXEL_COUNT_);
+        int UNIVERSE_COUNT_ = std::ceil((PIXEL_COUNT_ * 3) / static_cast<float>(512));
+        setupFastled(lightsPerPin);
+    }
+
+    void setupFastled(const std::array<int, PIN_COUNT> &lightsPerPin) {
         static_assert(PIN_COUNT == 4 && "setupFastLed() is hardcoded to handle exactly 4 pins!");
         // We can't use a loop here since addLeds() template parameters must be known at
         // compile-time
         int pixelOffset = 0;
-        if (lightsPerPin_[0] > 0) {
+        if (lightsPerPin[0] > 0) {
             FastLED.addLeds<WS2812, PINS[0], RGB_ORDER>(pixels_.data(), pixelOffset,
-                                                        lightsPerPin_[0] * PIXELS_PER_LIGHT_);
-            pixelOffset += lightsPerPin_[0] * PIXELS_PER_LIGHT_;
+                                                        lightsPerPin[0] * PIXELS_PER_LIGHT_);
+            pixelOffset += lightsPerPin[0] * PIXELS_PER_LIGHT_;
         }
-        if (lightsPerPin_[1] > 0) {
+        if (lightsPerPin[1] > 0) {
             FastLED.addLeds<WS2812, PINS[1], RGB_ORDER>(pixels_.data(), pixelOffset,
-                                                        lightsPerPin_[1] * PIXELS_PER_LIGHT_);
-            pixelOffset += lightsPerPin_[1] * PIXELS_PER_LIGHT_;
+                                                        lightsPerPin[1] * PIXELS_PER_LIGHT_);
+            pixelOffset += lightsPerPin[1] * PIXELS_PER_LIGHT_;
         }
-        if (lightsPerPin_[2] > 0) {
+        if (lightsPerPin[2] > 0) {
             FastLED.addLeds<WS2812, PINS[2], RGB_ORDER>(pixels_.data(), pixelOffset,
-                                                        lightsPerPin_[2] * PIXELS_PER_LIGHT_);
-            pixelOffset += lightsPerPin_[2] * PIXELS_PER_LIGHT_;
+                                                        lightsPerPin[2] * PIXELS_PER_LIGHT_);
+            pixelOffset += lightsPerPin[2] * PIXELS_PER_LIGHT_;
         }
-        if (lightsPerPin_[3] > 0) {
+        if (lightsPerPin[3] > 0) {
             FastLED.addLeds<WS2812, PINS[3], RGB_ORDER>(pixels_.data(), pixelOffset,
-                                                        lightsPerPin_[3] * PIXELS_PER_LIGHT_);
-            pixelOffset += lightsPerPin_[3] * PIXELS_PER_LIGHT_;
+                                                        lightsPerPin[3] * PIXELS_PER_LIGHT_);
+            pixelOffset += lightsPerPin[3] * PIXELS_PER_LIGHT_;
         }
         // Set maximum brightness (0 - 255)
         FastLED.setBrightness(MAX_BRIGHTNESS_);
         // FastLED.setMaxRefreshRate(50);
+    }
+
+    void artnetTask() {
+        Serial.print("artnetTask: started on core ");
+        Serial.println(xPortGetCoreID());
+        // artnet_.setArtDmxCallback(onDmxFrame);
+        artnet_.begin();
+        while (true) {
+            artnet_.read();
+        }
+    }
+
+    void fastledTask() {
+        Serial.print("fastledTask: started on core ");
+        Serial.println(xPortGetCoreID());
+        while (true) {
+            // Wait until artnet task signals that we can write to the leds
+            xSemaphoreTake(showSemaphore_, portMAX_DELAY);
+            FastLED.show();
+        }
+    }
+
+    // Static wrappers around the task function such that we can use non-static member functions
+    static void fastledTaskWrapper(void *thisPointer) {
+        static_cast<PixelDriver<PIN_COUNT, PINS, RGB_ORDER> *>(thisPointer)->fastledTask();
+    }
+
+    static void artnetTaskWrapper(void *thisPointer) {
+        // static_cast<PixelDriver<PIN_COUNT, PINS, RGB_ORDER> *>(_this)->artnetTask();
+        static_cast<PixelDriver *>(thisPointer)->artnetTask();
+    }
+
+    void setChannel(uint16_t universeIndex, int channelIndex, uint8_t value) {
+        // integer division will round off to nearest neighbor;
+        unsigned pixelIndex = (universeIndex * 512 + channelIndex) / 3;
+        // 0 -> first channel, 1 -> second channel, 2 -> third channel
+        unsigned rgbChannelIndex = (universeIndex * 512 + channelIndex) % 3;
+        if (pixelIndex >= PIXEL_COUNT_) {
+            return;
+        }
+        pixels_[pixelIndex][rgbChannelIndex] = value;
+    }
+
+    void onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
+        if (DEBUG_) {
+            Serial.print("Received universe ");
+            Serial.print(universeIndex);
+            Serial.print(" With size ");
+            Serial.println(length);
+        }
+        if (universeIndex >= UNIVERSE_COUNT_) {
+            if (DEBUG_) {
+                Serial.println("Error: Received invalid universe index!");
+            }
+            return;
+        }
+        // Store which universe has got in
+        receivedUniverses_.insert(universeIndex);
+        // Read universe and put into the right part of the display buffer
+        for (unsigned channelIndex = 0; channelIndex < length; channelIndex++) {
+            setChannel(universeIndex, channelIndex, data[channelIndex]);
+        }
+        // Write to leds if all universes were received
+        if (receivedUniverses_.size() == UNIVERSE_COUNT_) {
+            //  Reset receivedUniverses
+            receivedUniverses_.clear();
+            // Signal to the fastled task that it can write to the leds
+            xSemaphoreGive(showSemaphore_);
+        }
     }
 };
