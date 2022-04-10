@@ -42,9 +42,13 @@ void setup() {
         ESP.restart();
     }
     initNetworking();
-    PixelDriver<MAX_PIN_COUNT, PINS, RGB_ORDER> pixelDriver(lightsPerPin);
+    PixelDriver<MAX_PIN_COUNT, PINS, RGB_ORDER> pixelDriver(lightsPerPin, 144, 255, false);
     pixelDriver.testLeds();
+    // pixelDriver.startDebug();
     pixelDriver.start();
+    while (true) {
+        // Stay in setup() such that stack frame is not popped
+    }
 }
 
 void loop() {

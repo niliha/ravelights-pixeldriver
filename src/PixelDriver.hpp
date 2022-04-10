@@ -36,30 +36,11 @@ class PixelDriver {
     void start() {
         assert(showSemaphore_ != nullptr && "showSemaphore_ must not be null!");
         // Start artnet task on core 0 (together with the WIFI service)
-        xTaskCreatePinnedToCore(artnetTaskWrapper, /* Task function. */
-                                "artnetTask",      /* name of task. */
-                                10000,             /* Stack size of task */
-                                this,              /* parameter of the task */
-                                1,                 /* priority of the task */
-                                NULL,              /* Task handle to keep track of
-                                                   /* pin task to core 0 */
-                                0);
-        delay(100);  // giving artnetTask some time to finish its business..
-                     // Start the fastled task on core 1.
+        xTaskCreatePinnedToCore(artnetTaskWrapper, "artnetTask", 4096, this, 1, NULL, 0);
+        // Start the fastled task on core 1.
         // Therefore it is not affected by WIFI interrupts from core 0 while writing to the LEDs
         // (avoiding flickering).
-        xTaskCreatePinnedToCore(fastledTaskWrapper, /* Task function. */
-                                "fastledTask",      /* name of task. */
-                                10000,              /* Stack size of task */
-                                this,               /* parameter of the task */
-                                1,                  /* priority of the task */
-                                NULL,               /* Task handle to keep track of
-                                                    /* pin task to core 0 */
-                                1);
-    }
-
-    void stop() {
-        // TODO
+        xTaskCreatePinnedToCore(fastledTaskWrapper, "fastledTask", 4096, this, 1, NULL, 1);
     }
 
  private:
@@ -85,14 +66,15 @@ class PixelDriver {
     // Binary semaphore that is initialized (already taken) in initializer list.
     // It is used by the artnet task to signal the fastled task to write to the leds once all
     // universes of a single frame were received.
-    SemaphoreHandle_t const showSemaphore_;
+    SemaphoreHandle_t showSemaphore_;
 
     void configure(const std::array<int, PIN_COUNT> &lightsPerPin) {
         PIXEL_COUNT_ =
             PIXELS_PER_LIGHT_ * std::accumulate(lightsPerPin.begin(), lightsPerPin.end(), 0);
         pixels_.resize(PIXEL_COUNT_);
-        int UNIVERSE_COUNT_ = std::ceil((PIXEL_COUNT_ * 3) / static_cast<float>(512));
+        UNIVERSE_COUNT_ = std::ceil((PIXEL_COUNT_ * 3) / static_cast<float>(512));
         setupFastled(lightsPerPin);
+        setArtnetCallback();
     }
 
     void setupFastled(const std::array<int, PIN_COUNT> &lightsPerPin) {
@@ -125,10 +107,16 @@ class PixelDriver {
         // FastLED.setMaxRefreshRate(50);
     }
 
+    void setArtnetCallback() {
+        artnet_.setArtDmxFunc(
+            [this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
+                this->onDmxFrame(universeIndex, length, sequence, data);
+            });
+    }
+
     void artnetTask() {
         Serial.print("artnetTask: started on core ");
         Serial.println(xPortGetCoreID());
-        // artnet_.setArtDmxCallback(onDmxFrame);
         artnet_.begin();
         while (true) {
             artnet_.read();
