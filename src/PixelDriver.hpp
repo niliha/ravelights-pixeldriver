@@ -12,8 +12,7 @@ class PixelDriver {
     PixelDriver(const std::array<int, PIN_COUNT> &lightsPerPin, int pixelsPerLight = 144,
                 uint8_t maxBrightness = 255, int fps = 30, bool debug = false)
         : MAX_BRIGHTNESS_(maxBrightness), FPS_(fps), FRAME_TIME_(1000 / fps), DEBUG_(debug),
-          PIXELS_PER_LIGHT_(pixelsPerLight), showSemaphore_(xSemaphoreCreateBinary()),
-          showFinishedSem_(xSemaphoreCreateBinary()), pixelsMutex_(xSemaphoreCreateMutex()) {
+          PIXELS_PER_LIGHT_(pixelsPerLight), pixelsMutex_(xSemaphoreCreateMutex()) {
         // The watchdog on core 0 is not reset anymore, since the idle task is not resumed.
         // It is disabled to avoid watchdog timeouts (resulting in a reboot).
         disableCore0WDT();
@@ -39,8 +38,6 @@ class PixelDriver {
     }
 
     void start() {
-        assert(showSemaphore_ != nullptr && "showSemaphore_ must not be null!");
-        assert(showFinishedSem_ != nullptr && "showFinishedSemaphore_ must not be null!");
         assert(pixelsMutex_ != nullptr && "pixelsMutex_ must not be null!");
         // Start artnet task on core 0 (together with the WIFI service)
         xTaskCreatePinnedToCore(artnetTaskWrapper, "artnetTask", 4096, this, 1, NULL, 0);
