@@ -12,7 +12,12 @@ class PixelDriver {
     PixelDriver(const std::array<int, PIN_COUNT> &lightsPerPin, int pixelsPerLight = 144,
                 uint8_t maxBrightness = 255, bool debug = false)
         : MAX_BRIGHTNESS_(maxBrightness), DEBUG_(debug), PIXELS_PER_LIGHT_(pixelsPerLight),
-          showSemaphore_(xSemaphoreCreateBinary()) {
+          showSemaphore_(xSemaphoreCreateBinary()), showFinishedSem_(xSemaphoreCreateBinary()) {
+        // The watchdog on core 0 is not reset anymore, since the idle task is not resumed.
+        // It is disabled to avoid watchdog timeouts (resulting in a reboot).
+        disableCore0WDT();
+        // Improves UDP throughput drastically
+        WiFi.setSleep(false);
         configure(lightsPerPin);
     }
 
@@ -59,6 +64,7 @@ class PixelDriver {
     // It's size is set in configure() and must not be changed afterwards!
     std::vector<CRGB> pixels_;
     std::set<int> receivedUniverses_;
+    int lastUniverse_ = -1;
 
     // The ArtnetWifi instance
     ArtnetWifi artnet_;
@@ -67,6 +73,14 @@ class PixelDriver {
     // It is used by the artnet task to signal the fastled task to write to the leds once all
     // universes of a single frame were received.
     SemaphoreHandle_t showSemaphore_;
+
+    // Binary semaphore that is initialized (already taken) in initializer list.
+    // It is used by the fastled task to signal the artnet task that is has finished writing to the
+    // LEDs.
+    SemaphoreHandle_t showFinishedSem_;
+
+    // Used for debugging the time between frames.
+    unsigned long timeOfLastFrame_ = 0;
 
     void configure(const std::array<int, PIN_COUNT> &lightsPerPin) {
         PIXEL_COUNT_ =
@@ -119,7 +133,7 @@ class PixelDriver {
         Serial.println(xPortGetCoreID());
         artnet_.begin();
         while (true) {
-            artnet_.read();
+            uint16_t result = artnet_.read();
         }
     }
 
@@ -130,6 +144,7 @@ class PixelDriver {
             // Wait until artnet task signals that we can write to the leds
             xSemaphoreTake(showSemaphore_, portMAX_DELAY);
             FastLED.show();
+            xSemaphoreGive(showFinishedSem_);
         }
     }
 
@@ -167,18 +182,30 @@ class PixelDriver {
             }
             return;
         }
+        if (universeIndex != (lastUniverse_ + 1) % UNIVERSE_COUNT_) {
+            return;
+        }
         // Store which universe has got in
         receivedUniverses_.insert(universeIndex);
+        lastUniverse_ = universeIndex;
         // Read universe and put into the right part of the display buffer
         for (unsigned channelIndex = 0; channelIndex < length; channelIndex++) {
             setChannel(universeIndex, channelIndex, data[channelIndex]);
         }
         // Write to leds if all universes were received
         if (receivedUniverses_.size() == UNIVERSE_COUNT_) {
+            if (DEBUG_) {
+                Serial.print("Time since last frame: ");
+                Serial.println(millis() - timeOfLastFrame_);
+            }
+            timeOfLastFrame_ = millis();
             //  Reset receivedUniverses
             receivedUniverses_.clear();
             // Signal to the fastled task that it can write to the leds
             xSemaphoreGive(showSemaphore_);
+            // Wait until fastled task finished writing to the leds to avoid read/write conflict.
+            xSemaphoreTake(showFinishedSem_, portMAX_DELAY);
+            xSemaphoreGive(showFinishedSem_);
         }
     }
 };

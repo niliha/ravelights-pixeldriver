@@ -18,33 +18,14 @@ std::array<int, MAX_PIN_COUNT> lightsPerPin = {1, 1, 1, 1};
 const EOrder RGB_ORDER = EOrder::RGB;
 /* END USER CONFIG */
 
-void initNetworking() {
-    // Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
-    if (!Network::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
-        Serial.println("Rebooting due to wifi connection failure...");
-        FastLED.showColor(CRGB::Red);  // Red indicates failure
-        delay(1000);
-        FastLED.clear(true);
-        ESP.restart();
-    } else {
-        FastLED.showColor(CRGB::Green);  // Green indicates success
-        delay(1000);
-        FastLED.clear(true);
-        delay(1000);
-    }
-}
-
 void setup() {
-    disableCore0WDT();
     Serial.begin(115200);
 
     if (!Network::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
         ESP.restart();
     }
-    initNetworking();
     PixelDriver<MAX_PIN_COUNT, PINS, RGB_ORDER> pixelDriver(lightsPerPin, 144, 255, false);
     pixelDriver.testLeds();
-    // pixelDriver.startDebug();
     pixelDriver.start();
     while (true) {
         // Stay in setup() such that stack frame is not popped
