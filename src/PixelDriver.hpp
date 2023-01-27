@@ -51,9 +51,9 @@ class PixelDriver {
  private:
     /* "Constants" */
     // The number of individually addressable pixels per "light"
-    const int PIXELS_PER_LIGHT_;
     const uint8_t MAX_BRIGHTNESS_;
     const bool DEBUG_;
+    const int PIXELS_PER_LIGHT_;
     // Number of required Artnet universes. Set in configure().
     int UNIVERSE_COUNT_;
     // Total number of pixels across all lights. Set in configure().
@@ -92,7 +92,8 @@ class PixelDriver {
     }
 
     void setupFastled(const std::array<int, PIN_COUNT> &lightsPerPin) {
-        static_assert(PIN_COUNT == 4 && "setupFastLed() is hardcoded to handle exactly 4 pins!");
+        static_assert(PIN_COUNT == 4 && "setupFastLed() is hardcoded to handle exactly 4 pins!",
+                      "");
         // We can't use a loop here since addLeds() template parameters must be known at
         // compile-time
         int pixelOffset = 0;
