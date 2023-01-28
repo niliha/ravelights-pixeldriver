@@ -29,7 +29,7 @@ void setup() {
     }
     */
 
-    PixelDriver<MAX_PIN_COUNT, PINS, RGB_ORDER> pixelDriver(lightsPerPin, 144, 255, true);
+    PixelDriver<MAX_PIN_COUNT, PINS, RGB_ORDER> pixelDriver(lightsPerPin, 144, 255,false);
     pixelDriver.testLeds();
     Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
     pixelDriver.start();

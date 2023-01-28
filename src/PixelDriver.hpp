@@ -5,6 +5,7 @@
 #include <FastLED.h>
 #include <FrameQueue.hpp>
 #include <memory>
+#include <mutex>
 #include <numeric>
 #include <set>
 
@@ -84,6 +85,8 @@ class PixelDriver {
     // LEDs.
     SemaphoreHandle_t showFinishedSem_;
 
+    std::mutex queue_mutex_;
+
     FrameQueue<std::shared_ptr<std::vector<CRGB>>> frameQueue_;
     std::shared_ptr<std::vector<CRGB>> framePtr_;
 
@@ -149,15 +152,32 @@ class PixelDriver {
     void fastledTask() {
         Serial.print("fastledTask: started on core ");
         Serial.println(xPortGetCoreID());
-        while (true) {
-            // Wait until artnet task signals that we can write to the leds
-            xSemaphoreTake(showSemaphore_, portMAX_DELAY);
-            // Copy oldest frame from the queue into pixel buffer
-            pixels_ = *(frameQueue_.front());
-            frameQueue_.pop();
+        const int FRAME_TIME_MS = 1000 / 20;
 
+        auto lastMillis = millis();
+        while (true) {
+            if (millis() - lastMillis < FRAME_TIME_MS) {
+                continue;
+            }
+            lastMillis = millis();
+
+            // Update pixel buffer if there is a new frame in the queue
+            {
+                // Aquire lock and release it at end of this scope
+                std::lock_guard<std::mutex> lock(queue_mutex_);
+
+                if (!frameQueue_.isEmpty()) {
+                    Serial.println("frameQueue not empty!");
+                    // Move oldest frame from the queue into pixel buffer
+                    pixels_ = *frameQueue_.front();
+                    frameQueue_.pop();
+                } else {
+                    Serial.println("frameQueue is empty!");
+                }
+            }
+
+            // Write pixel buffer to the LEDs
             FastLED.show();
-            xSemaphoreGive(showFinishedSem_);
         }
     }
 
@@ -200,7 +220,8 @@ class PixelDriver {
         }
         if (universeIndex == 0) {
             // This will reassign the shared ptr.
-            // If the old framePtr_ has a use_count of 1, its underlying vector will be destroyed
+            // If the old framePtr_ has a use_count of 1, its underlying vector will be
+            // destroyed
             framePtr_ = std::make_shared<std::vector<CRGB>>(PIXEL_COUNT_);
         }
 
@@ -220,15 +241,10 @@ class PixelDriver {
             timeOfLastFrame_ = millis();
             //  Reset receivedUniverses
             receivedUniverses_.clear();
-            frameQueue_.push(framePtr_);
-            assert(framePtr_.use_count() == 2 &&
-                   "framePtr_ must have use count of 2 after pushing it to the queue");
-
-            // Signal to the fastled task that it can write to the leds
-            xSemaphoreGive(showSemaphore_);
-            // Wait until fastled task finished writing to the leds to avoid read/write conflict.
-            xSemaphoreTake(showFinishedSem_, portMAX_DELAY);
-            xSemaphoreGive(showFinishedSem_);
+            {
+                std::lock_guard<std::mutex> lock(queue_mutex_);
+                frameQueue_.push(framePtr_);
+            }
         }
     }
 };

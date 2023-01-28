@@ -1,3 +1,4 @@
+#include <mutex>
 #include <queue>
 #include <vector>
 
@@ -27,6 +28,9 @@ template <typename T> class FrameQueue {
 
     size_t size() {
         return frame_queue_.size();
+    }
+    bool isEmpty() {
+        return frame_queue_.empty();
     }
 
  private:
