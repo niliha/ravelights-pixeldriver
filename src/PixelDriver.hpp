@@ -19,8 +19,10 @@ class PixelDriver {
         // The watchdog on core 0 is not reset anymore, since the idle task is not resumed.
         // It is disabled to avoid watchdog timeouts (resulting in a reboot).
         disableCore0WDT();
+
         // Improves UDP throughput drastically
         WiFi.setSleep(false);
+
         configure(lightsPerPin);
     }
 
@@ -150,21 +152,10 @@ class PixelDriver {
         while (true) {
             // Wait until artnet task signals that we can write to the leds
             xSemaphoreTake(showSemaphore_, portMAX_DELAY);
-            Serial.print("Copying first frame into pixel buffer...");
-            // Copy frame at at the fron of the queue into pixel buffer
+            // Copy oldest frame from the queue into pixel buffer
             pixels_ = *(frameQueue_.front());
-            Serial.print("Poppping shared_ptr from queue... The underlying vector object should be "
-                         "destroyed");
-            Serial.print("Reference count before pop: ");
-            Serial.println(framePtr_.use_count());
-            assert(framePtr_.use_count() == 2 &&
-                   "framePtr_ must have use count of 2 before popping");
             frameQueue_.pop();
-            assert(framePtr_.use_count() == 1 &&
-                   "framePtr_ must have use count of 1 after popping");
 
-            Serial.print("Reference count after pop: ");
-            Serial.println(framePtr_.use_count());
             FastLED.show();
             xSemaphoreGive(showFinishedSem_);
         }
@@ -208,11 +199,8 @@ class PixelDriver {
             return;
         }
         if (universeIndex == 0) {
-            Serial.print("creating new frame_ptr...");
             // This will reassign the shared ptr.
-            // Since the old framePtr_ has a use_count of 1, its underlying vector will be destroyed
-            assert(framePtr_.use_count() == 1 &&
-                   "framePtr_ must have use count of 1 before reassignment");
+            // If the old framePtr_ has a use_count of 1, its underlying vector will be destroyed
             framePtr_ = std::make_shared<std::vector<CRGB>>(PIXEL_COUNT_);
         }
 
@@ -232,8 +220,9 @@ class PixelDriver {
             timeOfLastFrame_ = millis();
             //  Reset receivedUniverses
             receivedUniverses_.clear();
-            Serial.print("pushing frameptr to queue...");
             frameQueue_.push(framePtr_);
+            assert(framePtr_.use_count() == 2 &&
+                   "framePtr_ must have use count of 2 after pushing it to the queue");
 
             // Signal to the fastled task that it can write to the leds
             xSemaphoreGive(showSemaphore_);
