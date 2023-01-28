@@ -150,11 +150,22 @@ class PixelDriver {
         while (true) {
             // Wait until artnet task signals that we can write to the leds
             xSemaphoreTake(showSemaphore_, portMAX_DELAY);
-            // Copy vector into pixel buffer
+            Serial.print("Copying first frame into pixel buffer...");
+            // Copy frame at at the fron of the queue into pixel buffer
             pixels_ = *(frameQueue_.front());
-            // Pop shared_ptr from queue. The underlying vector object should be destroyed
-            FastLED.show();
+            Serial.print("Poppping shared_ptr from queue... The underlying vector object should be "
+                         "destroyed");
+            Serial.print("Reference count before pop: ");
+            Serial.println(framePtr_.use_count());
+            assert(framePtr_.use_count() == 2 &&
+                   "framePtr_ must have use count of 2 before popping");
             frameQueue_.pop();
+            assert(framePtr_.use_count() == 1 &&
+                   "framePtr_ must have use count of 1 after popping");
+
+            Serial.print("Reference count after pop: ");
+            Serial.println(framePtr_.use_count());
+            FastLED.show();
             xSemaphoreGive(showFinishedSem_);
         }
     }
@@ -181,7 +192,6 @@ class PixelDriver {
     }
 
     void onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
-        Serial.print("in ondmxframe()");
         if (DEBUG_) {
             Serial.print("Received universe ");
             Serial.print(universeIndex);
@@ -199,8 +209,11 @@ class PixelDriver {
         }
         if (universeIndex == 0) {
             Serial.print("creating new frame_ptr...");
-            // This will reassign the shared ptr
-            framePtr_ = std::make_shared<std::vector<CRGB>>();
+            // This will reassign the shared ptr.
+            // Since the old framePtr_ has a use_count of 1, its underlying vector will be destroyed
+            assert(framePtr_.use_count() == 1 &&
+                   "framePtr_ must have use count of 1 before reassignment");
+            framePtr_ = std::make_shared<std::vector<CRGB>>(PIXEL_COUNT_);
         }
 
         // Store which universe has got in
