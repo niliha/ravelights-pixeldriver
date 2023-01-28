@@ -3,6 +3,8 @@
 #include <ArtnetWifi.h>
 #define FASTLED_ESP32_I2S  // Alternative parallel output driver
 #include <FastLED.h>
+#include <FrameQueue.hpp>
+#include <memory>
 #include <numeric>
 #include <set>
 
@@ -12,7 +14,8 @@ class PixelDriver {
     PixelDriver(const std::array<int, PIN_COUNT> &lightsPerPin, int pixelsPerLight = 144,
                 uint8_t maxBrightness = 255, bool debug = false)
         : MAX_BRIGHTNESS_(maxBrightness), DEBUG_(debug), PIXELS_PER_LIGHT_(pixelsPerLight),
-          showSemaphore_(xSemaphoreCreateBinary()), showFinishedSem_(xSemaphoreCreateBinary()) {
+          showSemaphore_(xSemaphoreCreateBinary()), showFinishedSem_(xSemaphoreCreateBinary()),
+          frameQueue_(3), framePtr_(std::make_shared<std::vector<CRGB>>()) {
         // The watchdog on core 0 is not reset anymore, since the idle task is not resumed.
         // It is disabled to avoid watchdog timeouts (resulting in a reboot).
         disableCore0WDT();
@@ -79,6 +82,9 @@ class PixelDriver {
     // LEDs.
     SemaphoreHandle_t showFinishedSem_;
 
+    FrameQueue<std::shared_ptr<std::vector<CRGB>>> frameQueue_;
+    std::shared_ptr<std::vector<CRGB>> framePtr_;
+
     // Used for debugging the time between frames.
     unsigned long timeOfLastFrame_ = 0;
 
@@ -144,7 +150,11 @@ class PixelDriver {
         while (true) {
             // Wait until artnet task signals that we can write to the leds
             xSemaphoreTake(showSemaphore_, portMAX_DELAY);
+            // Copy vector into pixel buffer
+            pixels_ = *(frameQueue_.front());
+            // Pop shared_ptr from queue. The underlying vector object should be destroyed
             FastLED.show();
+            frameQueue_.pop();
             xSemaphoreGive(showFinishedSem_);
         }
     }
@@ -167,10 +177,11 @@ class PixelDriver {
         if (pixelIndex >= PIXEL_COUNT_) {
             return;
         }
-        pixels_[pixelIndex][rgbChannelIndex] = value;
+        (*framePtr_)[pixelIndex][rgbChannelIndex] = value;
     }
 
     void onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
+        Serial.print("in ondmxframe()");
         if (DEBUG_) {
             Serial.print("Received universe ");
             Serial.print(universeIndex);
@@ -186,6 +197,12 @@ class PixelDriver {
         if (universeIndex != (lastUniverse_ + 1) % UNIVERSE_COUNT_) {
             return;
         }
+        if (universeIndex == 0) {
+            Serial.print("creating new frame_ptr...");
+            // This will reassign the shared ptr
+            framePtr_ = std::make_shared<std::vector<CRGB>>();
+        }
+
         // Store which universe has got in
         receivedUniverses_.insert(universeIndex);
         lastUniverse_ = universeIndex;
@@ -202,6 +219,9 @@ class PixelDriver {
             timeOfLastFrame_ = millis();
             //  Reset receivedUniverses
             receivedUniverses_.clear();
+            Serial.print("pushing frameptr to queue...");
+            frameQueue_.push(framePtr_);
+
             // Signal to the fastled task that it can write to the leds
             xSemaphoreGive(showSemaphore_);
             // Wait until fastled task finished writing to the leds to avoid read/write conflict.
