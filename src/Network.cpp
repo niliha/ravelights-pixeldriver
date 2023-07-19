@@ -4,9 +4,8 @@
 namespace Network {
 bool connectToWifi(std::string wifiSsid, std::string wifiPassword) {
     WiFi.begin(wifiSsid.c_str(), wifiPassword.c_str());
-    Serial.println("Connecting to WiFi");
     // Wait for connection
-    Serial.print("Connecting");
+    Serial.println("Connecting to WiFi...");
     for (unsigned i = 0; i <= 20; i++) {
         if (WiFi.status() == WL_CONNECTED) {
             Serial.print("SUCCESS! IP address:  ");

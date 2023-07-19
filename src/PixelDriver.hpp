@@ -8,6 +8,7 @@
 #include <mutex>
 #include <numeric>
 #include <set>
+#include <string.h>
 
 template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDER = RGB> class PixelDriver {
  public:
@@ -23,12 +24,10 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
         Serial.println("Testing LEDs...");
         std::vector<CRGB> colors{CRGB::Red, CRGB::Green, CRGB::Blue};
         for (const auto color : colors) {
-            auto timeBefore = millis();
+            auto millisBefore = millis();
             FastLED.showColor(color);
-            auto passedTime = millis() - timeBefore;
-            Serial.print("show() took ");
-            Serial.print(passedTime);
-            Serial.println(" ms");
+            auto passedMillis = millis() - millisBefore;
+            Serial.printf("show() took %d ms\n", passedMillis);
             delay(500);
             FastLED.clear(true);
             delay(500);
@@ -82,7 +81,7 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
     std::shared_ptr<std::vector<CRGB>> artnetFrame_;
 
     // Used for debugging the time between frames.
-    unsigned long timeOfLastFrame_ = 0;
+    unsigned long lastFrameMillis_ = 0;
 
     void configure(const std::array<int, PIN_COUNT> &lightsPerPin) {
         // The watchdog on core 0 is not reset anymore, since the idle task is not resumed.
@@ -99,6 +98,12 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
 
         setupFastled(lightsPerPin);
         setArtnetCallback();
+
+        Serial.begin(115200);
+        Serial2.setRxFIFOFull(1);
+        Serial2.setRxBufferSize(4096);
+        // Serial2.begin(460800, SERIAL_8N1, 16, 17);
+        Serial2.begin(921600, SERIAL_8N1, 16, 17);
     }
 
     void setupFastled(const std::array<int, PIN_COUNT> &lightsPerPin) {
@@ -126,18 +131,17 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
                                                         lightsPerPin[3] * PIXELS_PER_LIGHT_);
             pixelOffset += lightsPerPin[3] * PIXELS_PER_LIGHT_;
         }
+        FastLED.setCorrection(TypicalLEDStrip);
     }
 
     void setArtnetCallback() {
-        artnet_.setArtDmxCallback(nullptr);
         artnet_.setArtDmxFunc([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
             this->onDmxFrame(universeIndex, length, sequence, data);
         });
     }
 
     void fastledTask() {
-        Serial.print("fastledTask: started on core ");
-        Serial.println(xPortGetCoreID());
+        Serial.printf("fastledTask: started on core %d\n", xPortGetCoreID());
 
         while (true) {
             auto millisBefore = millis();
@@ -152,21 +156,20 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
                     fastLedPixels_ = *frameQueue_.front();
                     // Pop pointer to oldest frame from the queue
                     frameQueue_.pop();
+
+                    // Write pixel buffer to the LEDs
+                    FastLED.show();
                 }
             }
-
-            // Write pixel buffer to the LEDs
-            FastLED.show();
 
             // Wait until a frame period has passed
             auto passedMillis = millis() - millisBefore;
             auto millisToWait = FRAME_PERIOD_MS_ - passedMillis;
             if (millisToWait < 0) {
-                Serial.print("WARN: FPS to high! Would need to wait negative time: ");
-                Serial.println(millisToWait);
-                return;
+                Serial.printf("WARN: FPS to high! Would need to wait negative time: %d ms", millisToWait);
+                continue;
             }
-            delay(passedMillis);
+            // delay(passedMillis);
         }
     }
 
@@ -175,14 +178,15 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
     }
 
     void artnetTask() {
-        Serial.print("artnetTask: started on core ");
-        Serial.println(xPortGetCoreID());
+        Serial.printf("artnetTask: started on core %d\n", xPortGetCoreID());
 
         artnet_.begin();
 
         while (true) {
             // This calls onDmxFrame() whenever a ArtDMX packet is received
-            auto result = artnet_.read();
+             artnet_.read();
+
+            parseArtnetPacketOverSerial();
         }
     }
 
@@ -192,16 +196,12 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
 
     void onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
         if (DEBUG_) {
-            Serial.print("Received universe ");
-            Serial.print(universeIndex);
-            Serial.print(" With size ");
-            Serial.println(length);
+            // Serial.printf("Received universe %d with %d bytes\n", universeIndex, length);
         }
 
         if (universeIndex >= universeCount_) {
             if (DEBUG_) {
-                Serial.print("Error: Received invalid universe index: ");
-                Serial.println(universeIndex);
+                Serial.printf("WARN: Received invalid universe index %d\n", universeIndex);
             }
             return;
         }
@@ -217,10 +217,9 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
         // All data for this frame has been received
         if (receivedUniverses_.size() == universeCount_) {
             if (DEBUG_) {
-                Serial.print("Time since last frame: ");
-                Serial.println(millis() - timeOfLastFrame_);
+                Serial.printf("Time since last frame: %d ms\n", millis() - lastFrameMillis_);
             }
-            timeOfLastFrame_ = millis();
+            lastFrameMillis_ = millis();
 
             // Reset information about received universes
             receivedUniverses_.clear();
@@ -245,5 +244,91 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
             return;
         }
         (*artnetFrame_)[pixelIndex][rgbChannelIndex] = value;
+    }
+
+    enum class ArtnetOverSerialState { START_DETECTION, METADATA_PARSING, DMX_DATA_READING };
+
+    void parseArtnetPacketOverSerial() {
+        const char *ARTNET_HEADER = "Art-Net";
+
+        static uint8_t buffer[1024];
+        static int currentBufferIndex = -1;
+        static auto currentState = ArtnetOverSerialState::START_DETECTION;
+        static uint16_t maximumBufferIndex = UINT16_MAX;
+        static uint16_t dmxDataLength = 0;
+        static unsigned long packet_start_millis = 0;
+
+        if (!Serial2.available()) {
+            // Nothing available to read. Try again next time
+            return;
+        }
+
+        // Serial.printf("Read byte %c\n", incomingByte);
+
+        switch (currentState) {
+        case ArtnetOverSerialState::START_DETECTION: {
+
+            uint8_t incomingByte = Serial2.read();
+            // The next character of the Artnet header has been received.
+            if (incomingByte == ARTNET_HEADER[currentBufferIndex + 1]) {
+                buffer[++currentBufferIndex] = incomingByte;
+                // Serial.printf("byte %d (%c) of header has been received\n", currentBufferIndex, incomingByte);
+                // if (currentBufferIndex == 0) {
+                //     packet_start_millis = millis();
+                // }
+            } else {
+                // An invalid artnet header byte has been received. Start over from the beginning
+                // Serial.printf("Invalid artnet header byte (%c) for index %d. Starting all over...\n", incomingByte,
+                //               currentBufferIndex + 1);
+                currentBufferIndex = -1;
+                break;
+            }
+            // All bytes of the Artnet header (including the null terminator) have been received. Switch to parsing mode
+            if (currentBufferIndex == strlen(ARTNET_HEADER)) {
+                //Serial.printf("Header has been Received. Switching to parsing mode...\n");
+                currentState = ArtnetOverSerialState::METADATA_PARSING;
+            }
+            break;
+        }
+        case ArtnetOverSerialState::METADATA_PARSING:
+            //printf("Trying to read %d remaining bytes for metadata\n", 17 - currentBufferIndex);
+            currentBufferIndex += Serial2.read(buffer + currentBufferIndex + 1, 17 - currentBufferIndex);
+            //printf("Now at index %d\n", currentBufferIndex);        
+
+            if (currentBufferIndex == 17) {
+                dmxDataLength = buffer[17] | buffer[16] << 8;
+                if (dmxDataLength < 2 || dmxDataLength > 512) {
+                    Serial.printf("WARN: Received invalid dmxDataLength %d. Skipping this frame\n", dmxDataLength);
+                    currentBufferIndex = -1;
+                    maximumBufferIndex = UINT16_MAX;
+                    currentState = ArtnetOverSerialState::START_DETECTION;
+                    break;
+                }
+                maximumBufferIndex = currentBufferIndex + dmxDataLength;
+                //Serial.printf("Continuing to read %d DMX bytes until index %d\n", dmxDataLength, maximumBufferIndex);
+                currentState = ArtnetOverSerialState::DMX_DATA_READING;
+                break;
+            }
+            break;
+
+        case ArtnetOverSerialState::DMX_DATA_READING:
+            currentBufferIndex +=
+                Serial2.read(buffer + currentBufferIndex + 1, maximumBufferIndex - currentBufferIndex);
+
+            if (currentBufferIndex == maximumBufferIndex) {
+                uint8_t sequence = buffer[12];
+                uint16_t universe = buffer[14] | buffer[15] << 8;
+                onDmxFrame(universe, dmxDataLength, sequence, buffer + 18);
+                //Serial.printf("Received complete universe %d with %d bytes\n. Switching back to WAITING mode\n",
+                //              universe, dmxDataLength);
+                //Serial.printf("Last buffer index was %d\n", currentBufferIndex);
+                // Serial.printf("Receiving packet took %d ms\n", millis() - packet_start_millis);
+                currentBufferIndex = -1;
+                maximumBufferIndex = UINT16_MAX;
+                currentState = ArtnetOverSerialState::START_DETECTION;
+                break;
+            }
+            break;
+        }
     }
 };

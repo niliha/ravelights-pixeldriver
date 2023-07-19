@@ -21,7 +21,6 @@ const EOrder RGB_ORDER = EOrder::RGB;
 /* END USER CONFIG */
 
 void setup() {
-    Serial.begin(115200);
 
     /*
     if (!Network::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
@@ -30,7 +29,7 @@ void setup() {
     */
 
     // PixelDriver<MAX_PIN_COUNT, PINS, RGB_ORDER> pixelDriver(lightsPerPin, 144, 255, false);
-    PixelDriver<MAX_PIN_COUNT, PINS, RGB_ORDER> pixelDriver(lightsPerPin, 20, 3, 144, true);
+    PixelDriver<MAX_PIN_COUNT, PINS, RGB_ORDER> pixelDriver(lightsPerPin, 30, 3, 144, true);
 
     pixelDriver.testLeds();
     Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
