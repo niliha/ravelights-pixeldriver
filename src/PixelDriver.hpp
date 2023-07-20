@@ -99,11 +99,12 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
         setupFastled(lightsPerPin);
         setArtnetCallback();
 
+        //Serial.begin(115200);
         Serial.begin(115200);
         Serial2.setRxFIFOFull(1);
         Serial2.setRxBufferSize(4096);
-        // Serial2.begin(460800, SERIAL_8N1, 16, 17);
-        Serial2.begin(921600, SERIAL_8N1, 16, 17);
+        // Maximum baud rate that works together with a raspberry Pi 3b+
+        Serial2.begin(3000000, SERIAL_8N1, 16, 17);
     }
 
     void setupFastled(const std::array<int, PIN_COUNT> &lightsPerPin) {
@@ -257,6 +258,7 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
         static uint16_t maximumBufferIndex = UINT16_MAX;
         static uint16_t dmxDataLength = 0;
         static unsigned long packet_start_millis = 0;
+        static bool isSynced = false;
 
         if (!Serial2.available()) {
             // Nothing available to read. Try again next time
@@ -280,11 +282,17 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
                 // An invalid artnet header byte has been received. Start over from the beginning
                 // Serial.printf("Invalid artnet header byte (%c) for index %d. Starting all over...\n", incomingByte,
                 //               currentBufferIndex + 1);
+
+                isSynced = false;
                 currentBufferIndex = -1;
                 break;
             }
             // All bytes of the Artnet header (including the null terminator) have been received. Switch to parsing mode
             if (currentBufferIndex == strlen(ARTNET_HEADER)) {
+                if (!isSynced) {
+                    Serial.printf("(Re)-synchronized with byte stream\n");
+                }
+                isSynced = true;
                 //Serial.printf("Header has been Received. Switching to parsing mode...\n");
                 currentState = ArtnetOverSerialState::METADATA_PARSING;
             }
