@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ArtnetWifi.h>
+#include "ArtnetSerial.hpp"
 #define FASTLED_ESP32_I2S  // Alternative parallel output driver
 #include <FastLED.h>
 #include <FrameQueue.hpp>
@@ -8,12 +9,13 @@
 #include <mutex>
 #include <numeric>
 #include <set>
+#include <string.h>
 
 template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDER = RGB> class PixelDriver {
  public:
-    PixelDriver(const std::array<int, PIN_COUNT> &lightsPerPin, float framesPerSecond = 20, int frameQueueCapacity = 3,
+    PixelDriver(const std::array<int, PIN_COUNT> &lightsPerPin, int artnetSerialBaudrate = 3000000, float framesPerSecond = 20, int frameQueueCapacity = 3,
                 int pixelsPerLight = 144, bool debug = false)
-        : DEBUG_(debug), PIXELS_PER_LIGHT_(pixelsPerLight), FRAME_PERIOD_MS_(1000 / framesPerSecond),
+        : DEBUG_(debug), PIXELS_PER_LIGHT_(pixelsPerLight), FRAME_PERIOD_MS_(1000 / framesPerSecond), artnetSerial_(artnetSerialBaudrate),
           artnetFrame_(std::make_shared<std::vector<CRGB>>()), frameQueue_(frameQueueCapacity) {
 
         configure(lightsPerPin);
@@ -23,12 +25,10 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
         Serial.println("Testing LEDs...");
         std::vector<CRGB> colors{CRGB::Red, CRGB::Green, CRGB::Blue};
         for (const auto color : colors) {
-            auto timeBefore = millis();
+            auto millisBefore = millis();
             FastLED.showColor(color);
-            auto passedTime = millis() - timeBefore;
-            Serial.print("show() took ");
-            Serial.print(passedTime);
-            Serial.println(" ms");
+            auto passedMillis = millis() - millisBefore;
+            Serial.printf("show() took %d ms\n", passedMillis);
             delay(500);
             FastLED.clear(true);
             delay(500);
@@ -64,7 +64,9 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
     std::vector<CRGB> fastLedPixels_;
 
     // The ArtnetWifi instance
-    ArtnetWifi artnet_;
+    ArtnetWifi artnetWifi_;
+
+    ArtnetSerial artnetSerial_;
 
     // Number of required Artnet universes. Set in configure().
     int universeCount_;
@@ -82,7 +84,7 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
     std::shared_ptr<std::vector<CRGB>> artnetFrame_;
 
     // Used for debugging the time between frames.
-    unsigned long timeOfLastFrame_ = 0;
+    unsigned long lastFrameMillis_ = 0;
 
     void configure(const std::array<int, PIN_COUNT> &lightsPerPin) {
         // The watchdog on core 0 is not reset anymore, since the idle task is not resumed.
@@ -126,18 +128,20 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
                                                         lightsPerPin[3] * PIXELS_PER_LIGHT_);
             pixelOffset += lightsPerPin[3] * PIXELS_PER_LIGHT_;
         }
+        FastLED.setCorrection(TypicalLEDStrip);
     }
 
     void setArtnetCallback() {
-        artnet_.setArtDmxCallback(nullptr);
-        artnet_.setArtDmxFunc([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
+        artnetWifi_.setArtDmxFunc([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
+            this->onDmxFrame(universeIndex, length, sequence, data);
+        });
+        artnetSerial_.setArtDmxCallback([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
             this->onDmxFrame(universeIndex, length, sequence, data);
         });
     }
 
     void fastledTask() {
-        Serial.print("fastledTask: started on core ");
-        Serial.println(xPortGetCoreID());
+        Serial.printf("fastledTask: started on core %d\n", xPortGetCoreID());
 
         while (true) {
             auto millisBefore = millis();
@@ -152,21 +156,20 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
                     fastLedPixels_ = *frameQueue_.front();
                     // Pop pointer to oldest frame from the queue
                     frameQueue_.pop();
+
+                    // Write pixel buffer to the LEDs
+                    FastLED.show();
                 }
             }
-
-            // Write pixel buffer to the LEDs
-            FastLED.show();
 
             // Wait until a frame period has passed
             auto passedMillis = millis() - millisBefore;
             auto millisToWait = FRAME_PERIOD_MS_ - passedMillis;
             if (millisToWait < 0) {
-                Serial.print("WARN: FPS to high! Would need to wait negative time: ");
-                Serial.println(millisToWait);
-                return;
+                Serial.printf("WARN: FPS to high! Would need to wait negative time: %d ms", millisToWait);
+                continue;
             }
-            delay(passedMillis);
+            // delay(passedMillis);
         }
     }
 
@@ -175,14 +178,14 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
     }
 
     void artnetTask() {
-        Serial.print("artnetTask: started on core ");
-        Serial.println(xPortGetCoreID());
+        Serial.printf("artnetTask: started on core %d\n", xPortGetCoreID());
 
-        artnet_.begin();
+        artnetWifi_.begin();
 
         while (true) {
             // This calls onDmxFrame() whenever a ArtDMX packet is received
-            auto result = artnet_.read();
+             artnetWifi_.read();
+             artnetSerial_.read();
         }
     }
 
@@ -192,16 +195,12 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
 
     void onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
         if (DEBUG_) {
-            Serial.print("Received universe ");
-            Serial.print(universeIndex);
-            Serial.print(" With size ");
-            Serial.println(length);
+            // Serial.printf("Received universe %d with %d bytes\n", universeIndex, length);
         }
 
         if (universeIndex >= universeCount_) {
             if (DEBUG_) {
-                Serial.print("Error: Received invalid universe index: ");
-                Serial.println(universeIndex);
+                Serial.printf("WARN: Received invalid universe index %d\n", universeIndex);
             }
             return;
         }
@@ -217,10 +216,9 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
         // All data for this frame has been received
         if (receivedUniverses_.size() == universeCount_) {
             if (DEBUG_) {
-                Serial.print("Time since last frame: ");
-                Serial.println(millis() - timeOfLastFrame_);
+                Serial.printf("Time since last frame: %d ms\n", millis() - lastFrameMillis_);
             }
-            timeOfLastFrame_ = millis();
+            lastFrameMillis_ = millis();
 
             // Reset information about received universes
             receivedUniverses_.clear();
@@ -246,4 +244,5 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
         }
         (*artnetFrame_)[pixelIndex][rgbChannelIndex] = value;
     }
+
 };
