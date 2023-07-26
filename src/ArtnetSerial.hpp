@@ -11,21 +11,21 @@ class ArtnetSerial {
     void read();
 
  private:
-    static constexpr int UART2_RX_PIN = 16;
-    static constexpr int UART2_TX_PIN = 17;
+    static const int UART2_RX_PIN = 16;
+    static const int UART2_TX_PIN = 17;
 
     static constexpr char *ARTNET_HEADER = "Art-Net";
-    static constexpr int ART_DMX_OPCODE = 0x5000;
-    static constexpr int ART_DMX_MAXIMUM_LENGTH = 530;
+    static const int ART_DMX_OPCODE = 0x5000;
+    static const int ART_DMX_MAXIMUM_LENGTH = 530;
 
-    static constexpr int ARTNET_OPCODE_LO_OFFSET = 8;
-    static constexpr int ARTNET_OPCODE_HI_OFFSET = 9;
-    static constexpr int ART_DMX_SEQUENCE_OFFSET = 12;
-    static constexpr int ART_DMX_UNIVERSE_LO_OFFSET = 14;
-    static constexpr int ART_DMX_UNIVERSE_HI_OFFSET = 15;
-    static constexpr int ART_DMX_LENGTH_HI_OFFSET = 16;
-    static constexpr int ART_DMX_LENGTH_LO_OFFSET = 17;
-    static constexpr int ART_DMX_DATA_OFFSET = 18;
+    static const int ARTNET_OPCODE_LO_OFFSET = 8;
+    static const int ARTNET_OPCODE_HI_OFFSET = 9;
+    static const int ART_DMX_SEQUENCE_OFFSET = 12;
+    static const int ART_DMX_UNIVERSE_LO_OFFSET = 14;
+    static const int ART_DMX_UNIVERSE_HI_OFFSET = 15;
+    static const int ART_DMX_LENGTH_HI_OFFSET = 16;
+    static const int ART_DMX_LENGTH_LO_OFFSET = 17;
+    static const int ART_DMX_DATA_OFFSET = 18;
 
     enum class State {
         START_DETECTION,

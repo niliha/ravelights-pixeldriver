@@ -5,9 +5,10 @@ ArtnetSerial::ArtnetSerial(int baudRate) : onArtDmxFrame_(nullptr) {
     Serial2.setRxBufferSize(2 * ART_DMX_MAXIMUM_LENGTH);
     Serial2.begin(baudRate, SERIAL_8N1, UART2_RX_PIN, UART2_TX_PIN);
 }
-    void ArtnetSerial::setArtDmxCallback(ArtDmxCallback artDmxCallback) {
-       onArtDmxFrame_ = artDmxCallback;
-    }
+
+void ArtnetSerial::setArtDmxCallback(ArtDmxCallback artDmxCallback) {
+    onArtDmxFrame_ = artDmxCallback;
+}
 
 void ArtnetSerial::startOver(bool success) {
     if (!success) {
@@ -87,7 +88,7 @@ void ArtnetSerial::read() {
             uint8_t sequence = buffer_[ART_DMX_SEQUENCE_OFFSET];
             uint16_t universe = buffer_[ART_DMX_UNIVERSE_HI_OFFSET] << 8 | buffer_[ART_DMX_UNIVERSE_LO_OFFSET];
             if (onArtDmxFrame_ != nullptr) {
-            onArtDmxFrame_(universe, dmxDataLength_, sequence, buffer_ + ART_DMX_DATA_OFFSET);
+                onArtDmxFrame_(universe, dmxDataLength_, sequence, buffer_ + ART_DMX_DATA_OFFSET);
             }
             startOver(true);
         }
