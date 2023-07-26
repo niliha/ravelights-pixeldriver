@@ -1,8 +1,9 @@
 #pragma once
 
-#include <ArtnetWifi.h>
 #include "ArtnetSerial.hpp"
+#include <ArtnetWifi.h>
 #define FASTLED_ESP32_I2S  // Alternative parallel output driver
+#include "BlockingRingBuffer.hpp"
 #include <FastLED.h>
 #include <FrameQueue.hpp>
 #include <memory>
@@ -13,10 +14,10 @@
 
 template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDER = RGB> class PixelDriver {
  public:
-    PixelDriver(const std::array<int, PIN_COUNT> &lightsPerPin, int artnetSerialBaudrate = 3000000, float framesPerSecond = 20, int frameQueueCapacity = 3,
-                int pixelsPerLight = 144, bool debug = false)
-        : DEBUG_(debug), PIXELS_PER_LIGHT_(pixelsPerLight), FRAME_PERIOD_MS_(1000 / framesPerSecond), artnetSerial_(artnetSerialBaudrate),
-          artnetFrame_(std::make_shared<std::vector<CRGB>>()), frameQueue_(frameQueueCapacity) {
+    PixelDriver(const std::array<int, PIN_COUNT> &lightsPerPin, int artnetSerialBaudrate = 3000000,
+                float framesPerSecond = 20, int frameQueueCapacity = 3, int pixelsPerLight = 144, bool debug = false)
+        : DEBUG_(debug), PIXELS_PER_LIGHT_(pixelsPerLight), FRAME_PERIOD_MS_(1000 / framesPerSecond),
+          artnetSerial_(artnetSerialBaudrate), frameQueue_(frameQueueCapacity) {
 
         configure(lightsPerPin);
     }
@@ -75,13 +76,13 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
     std::set<int> receivedUniverses_;
 
     // Queue for storing incoming Artnet frames
-    FrameQueue<std::shared_ptr<std::vector<CRGB>>> frameQueue_;
+    BlockingRingBuffer<std::vector<CRGB>> frameQueue_;
 
     // Mutex for synchronizing access to the frame queue by the ArtNet and FastLED task
     std::mutex queue_mutex_;
 
     // Pointer referencing the frame currently filled by the ArtNet task
-    std::shared_ptr<std::vector<CRGB>> artnetFrame_;
+    std::vector<CRGB> artnetFrame_;
 
     // Used for debugging the time between frames.
     unsigned long lastFrameMillis_ = 0;
@@ -96,7 +97,7 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
 
         pixelCount_ = PIXELS_PER_LIGHT_ * std::accumulate(lightsPerPin.begin(), lightsPerPin.end(), 0);
         fastLedPixels_.resize(pixelCount_);
-        artnetFrame_->resize(pixelCount_);
+        artnetFrame_.resize(pixelCount_);
         universeCount_ = std::ceil((pixelCount_ * 3) / static_cast<float>(512));
 
         setupFastled(lightsPerPin);
@@ -135,9 +136,10 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
         artnetWifi_.setArtDmxFunc([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
             this->onDmxFrame(universeIndex, length, sequence, data);
         });
-        artnetSerial_.setArtDmxCallback([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
-            this->onDmxFrame(universeIndex, length, sequence, data);
-        });
+        artnetSerial_.setArtDmxCallback(
+            [this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
+                this->onDmxFrame(universeIndex, length, sequence, data);
+            });
     }
 
     void fastledTask() {
@@ -146,21 +148,10 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
         while (true) {
             auto millisBefore = millis();
 
-            // Update pixel buffer if there is a new frame in the queue
-            {
-                // Aquire lock and release it at end of this scope
-                std::lock_guard<std::mutex> lock(queue_mutex_);
-
-                if (!frameQueue_.isEmpty()) {
-                    // Copy oldest frame from the queue into pixel buffer
-                    fastLedPixels_ = *frameQueue_.front();
-                    // Pop pointer to oldest frame from the queue
-                    frameQueue_.pop();
-
-                    // Write pixel buffer to the LEDs
-                    FastLED.show();
-                }
-            }
+            // Copy oldest frame from the queue into pixel buffer
+            frameQueue_.pop(fastLedPixels_);
+            // Write pixel buffer to the LEDs
+            FastLED.show();
 
             // Wait until a frame period has passed
             auto passedMillis = millis() - millisBefore;
@@ -169,7 +160,6 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
                 Serial.printf("WARN: FPS to high! Would need to wait negative time: %d ms", millisToWait);
                 continue;
             }
-            // delay(passedMillis);
         }
     }
 
@@ -184,8 +174,8 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
 
         while (true) {
             // This calls onDmxFrame() whenever a ArtDMX packet is received
-             artnetWifi_.read();
-             artnetSerial_.read();
+            artnetWifi_.read();
+            artnetSerial_.read();
         }
     }
 
@@ -224,13 +214,10 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
             receivedUniverses_.clear();
 
             // Put the filled frame into the queue such that the FasLED task can consume it
-            {
-                std::lock_guard<std::mutex> lock(queue_mutex_);
-                frameQueue_.push(artnetFrame_);
+            frameQueue_.push(std::move(artnetFrame_));
 
-                // Create a new vector for the next frame.
-                artnetFrame_ = std::make_shared<std::vector<CRGB>>(pixelCount_);
-            }
+            // Create a new vector for the next frame.
+            artnetFrame_ = std::vector<CRGB>(pixelCount_);
         }
     }
 
@@ -242,7 +229,6 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
         if (pixelIndex >= pixelCount_) {
             return;
         }
-        (*artnetFrame_)[pixelIndex][rgbChannelIndex] = value;
+        artnetFrame_[pixelIndex][rgbChannelIndex] = value;
     }
-
 };
