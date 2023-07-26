@@ -1,34 +1,36 @@
+#pragma once
+
 #include <condition_variable>
-#include <mutex>
 #include <deque>
+#include <mutex>
 
 template <typename T> class BlockingRingBuffer {
 
  public:
-    BlockingRingBuffer(size_t capacity) : capacity(capacity) {
+    BlockingRingBuffer(size_t capacity) : capacity_(capacity) {
     }
 
     void push(T &&item) {
         {
-            std::unique_lock<std::mutex> lk(mutex);
-            if (content.size() == capacity) {
-                content.pop_front();
+            std::unique_lock<std::mutex> lock(mutex_);
+            if (buffer_.size() == capacity_) {
+                buffer_.pop_front();
             }
-            content.push_back(std::move(item));
+            buffer_.push_back(std::move(item));
         }
-        not_empty.notify_one();
+        isNotEmpty_.notify_one();
     }
 
     void pop(T &item) {
-        std::unique_lock<std::mutex> lk(mutex);
-        not_empty.wait(lk, [this]() { return !content.empty(); });
-        item = std::move(content.front());
-        content.pop_front();
+        std::unique_lock<std::mutex> lock(mutex_);
+        isNotEmpty_.wait(lock, [this]() { return !buffer_.empty(); });
+        item = std::move(buffer_.front());
+        buffer_.pop_front();
     }
 
  private:
-    std::deque<T> content;
-    size_t capacity;
-    std::mutex mutex;
-    std::condition_variable not_empty;
+    std::deque<T> buffer_;
+    size_t capacity_;
+    std::mutex mutex_;
+    std::condition_variable isNotEmpty_;
 };
