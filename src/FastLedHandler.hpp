@@ -26,6 +26,10 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
         FastLED.show();
     }
 
+    void applyConfig(PixelConfig& pixelConfig) {
+        // TODO:
+    }
+
     void testLeds() {
         Serial.println("Testing LEDs...");
         std::vector<CRGB> colors{CRGB::Red, CRGB::Green, CRGB::Blue};

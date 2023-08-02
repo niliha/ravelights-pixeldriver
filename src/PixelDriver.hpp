@@ -2,13 +2,19 @@
 
 #include "ArtnetHandler.hpp"
 #include "FastLedHandler.hpp"
+#include "PixelConfig.hpp"
+
+#include <variant>
 
 template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDER = RGB> class PixelDriver {
  public:
     PixelDriver(const std::array<int, PIN_COUNT> &lightsPerPin, int pixelsPerLight = 144, int baudrate = 3000000,
                 int frameQueueCapacity = 3)
-        : fastLedHandler_(lightsPerPin, pixelsPerLight), frameQueue_(frameQueueCapacity),
-          artnetHandler_(frameQueue_, fastLedHandler_.getPixelCount(), baudrate), lastFrameMillis_(millis()) {
+        : fastLedHandler_(lightsPerPin, pixelsPerLight), artnetQueue_(frameQueueCapacity),
+          artnetHandler_(artnetQueue_, fastLedHandler_.getPixelCount(), baudrate), lastFrameMillis_(millis()) {
+        // The watchdog on core 0 is not reset anymore, since the idle task is not resumed.
+        // It is disabled to avoid watchdog timeouts (resulting in a reboot).
+        disableCore0WDT();
     }
 
     void testLeds() {
@@ -30,19 +36,29 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
  private:
     FastLedHandler<PIN_COUNT, PINS, RGB_ORDER> fastLedHandler_;
     ArtnetHandler artnetHandler_;
-    BlockingRingBuffer<std::vector<CRGB>> frameQueue_;
+    BlockingRingBuffer<std::variant<PixelFrame, PixelConfig>> artnetQueue_;
     unsigned long lastFrameMillis_;
 
     void fastledTask() {
         Serial.printf("fastledTask: started on core %d\n", xPortGetCoreID());
 
         while (true) {
-            std::vector<CRGB> oldestFrame;
-            frameQueue_.pop(oldestFrame);
+            std::variant<PixelFrame, PixelConfig> pixelVariant;
+            artnetQueue_.pop(pixelVariant);
 
-            fastLedHandler_.write(oldestFrame);
-            Serial.printf("%d ms since last frame\n", millis() - lastFrameMillis_);
-            lastFrameMillis_ = millis();
+            std::visit(
+                [this](auto &&arg) {
+                    using T = std::decay_t<decltype(arg)>;
+                    if constexpr (std::is_same_v<T, PixelFrame>) {
+                        fastLedHandler_.write(arg);
+                        Serial.printf("%d ms since last frame\n", millis() - lastFrameMillis_);
+                        lastFrameMillis_ = millis();
+                    } else if constexpr (std::is_same_v<T, PixelConfig>) {
+                        Serial.printf("TODO: Applying PixelConfig...\n");
+                        fastLedHandler_.applyConfig(arg);
+                    }
+                },
+                pixelVariant);
         }
     }
 

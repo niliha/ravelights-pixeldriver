@@ -14,7 +14,7 @@ class ArtnetSerial {
     static const int UART2_RX_PIN = 16;
     static const int UART2_TX_PIN = 17;
 
-    static constexpr char *ARTNET_HEADER = "Art-Net";
+    static constexpr const char *ARTNET_HEADER = "Art-Net";
     static const int ART_DMX_OPCODE = 0x5000;
     static const int ART_DMX_MAXIMUM_LENGTH = 530;
 
