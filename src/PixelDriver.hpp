@@ -1,19 +1,22 @@
 #pragma once
 
+#include <Preferences.h>
+#include <variant>
+
 #include "ArtnetHandler.hpp"
 #include "FastLedHandler.hpp"
 #include "PixelConfig.hpp"
 
-#include <variant>
-
 template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDER = RGB> class PixelDriver {
  public:
-    PixelDriver(const std::array<int, PIN_COUNT> &lightsPerPin, int pixelsPerLight = 144, int baudrate = 3000000,
+    PixelDriver(const std::array<uint8_t, PIN_COUNT> &defaultLightsPerPin, int pixelsPerLight = 144, int baudrate = 3000000,
                 int frameQueueCapacity = 3)
-        : fastLedHandler_(lightsPerPin, pixelsPerLight), artnetQueue_(frameQueueCapacity),
-          artnetHandler_(artnetQueue_, fastLedHandler_.getPixelCount(), baudrate), lastFrameMillis_(millis()) {
-        // The watchdog on core 0 is not reset anymore, since the idle task is not resumed.
-        // It is disabled to avoid watchdog timeouts (resulting in a reboot).
+        : fastLedHandler_(loadLightsPerOutputConfig(defaultLightsPerPin), pixelsPerLight),
+          artnetQueue_(frameQueueCapacity), artnetHandler_(artnetQueue_, fastLedHandler_.getPixelCount(), baudrate),
+          lastFrameMillis_(millis()) {
+        // The Artnet task on core 0 does not block/sleep to reduce latency.
+        // Therefore, the watchdog on core 0 is not reset anymore, since the idle task is not resumed.
+        // It is disabled to avoid watchdog timeouts resulting in a reboot.
         disableCore0WDT();
     }
 
@@ -34,10 +37,43 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
     }
 
  private:
+    static constexpr const char *PREFERENCE_NAMESPACE = "ravelights";
+    static constexpr const char *LIGHTS_PER_OUTPUT_PREFERENCE_KEY = "output_config";
+
     FastLedHandler<PIN_COUNT, PINS, RGB_ORDER> fastLedHandler_;
     ArtnetHandler artnetHandler_;
     BlockingRingBuffer<std::variant<PixelFrame, PixelConfig>> artnetQueue_;
     unsigned long lastFrameMillis_;
+
+    std::array<uint8_t, PIN_COUNT> loadLightsPerOutputConfig(const std::array<uint8_t, PIN_COUNT> &defaultConfig) {
+        Preferences preferences;
+        preferences.begin(PREFERENCE_NAMESPACE, false);
+        if (!preferences.isKey(LIGHTS_PER_OUTPUT_PREFERENCE_KEY)) {
+            preferences.end();
+            Serial.printf("Using default lights per output config (%d, %d, %d, %d)\n", defaultConfig[0],
+                          defaultConfig[1], defaultConfig[2], defaultConfig[3]);
+            return defaultConfig;
+        }
+
+        std::array<uint8_t, 4> lightsPerOutput;
+        preferences.getBytes(LIGHTS_PER_OUTPUT_PREFERENCE_KEY, lightsPerOutput.data(), 4);
+        preferences.end();
+        Serial.printf("Using lights per output config from flash (%d, %d, %d, %d)\n", lightsPerOutput[0],
+                      lightsPerOutput[1], lightsPerOutput[2], lightsPerOutput[3]);
+         return lightsPerOutput;
+    }
+
+    void applyPixelConfig(const PixelConfig &pixelConfig){
+        Preferences preferences;
+        preferences.begin(PREFERENCE_NAMESPACE, false);
+        preferences.putBytes(LIGHTS_PER_OUTPUT_PREFERENCE_KEY, pixelConfig.lightsPerOutput.data(),
+                             pixelConfig.lightsPerOutput.size());
+        preferences.end();
+
+        Serial.printf("Restarting ESP32 to apply new config (%d, %d, %d, %d)...\n", pixelConfig.lightsPerOutput[0],
+                      pixelConfig.lightsPerOutput[1], pixelConfig.lightsPerOutput[2], pixelConfig.lightsPerOutput[3]);
+        ESP.restart();
+    }
 
     void fastledTask() {
         Serial.printf("fastledTask: started on core %d\n", xPortGetCoreID());
@@ -54,8 +90,8 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
                         Serial.printf("%d ms since last frame\n", millis() - lastFrameMillis_);
                         lastFrameMillis_ = millis();
                     } else if constexpr (std::is_same_v<T, PixelConfig>) {
-                        Serial.printf("TODO: Applying PixelConfig...\n");
-                        fastLedHandler_.applyConfig(arg);
+                        Serial.printf("Applying PixelConfig...\n");
+                        applyPixelConfig(arg);
                     }
                 },
                 pixelVariant);

@@ -3,9 +3,9 @@
 #include <array>
 
 struct PixelConfig {
-    std::array<int, 4> lightsPerOutput;
+    std::array<uint8_t, 4> lightsPerOutput;
 
-    PixelConfig(std::array<int,4> lightsPerOutput) {
+    PixelConfig(std::array<uint8_t,4> lightsPerOutput) {
         this->lightsPerOutput = lightsPerOutput;
     }
 };

@@ -34,7 +34,7 @@ void ArtnetHandler::handleConfig(uint16_t length, uint8_t *data) {
         return;
     }
 
-    std::array<int, 4> lightsPerOutput = {data[0], data[1], data[2], data[3]};
+    std::array<uint8_t, 4> lightsPerOutput = {data[0], data[1], data[2], data[3]};
     int checksum = std::accumulate(lightsPerOutput.begin(), lightsPerOutput.end(), 0);
     if (checksum != data[4]) {
         Serial.printf("ERROR: Calculated config checksum %d does not match with %d\n", checksum, data[4]);

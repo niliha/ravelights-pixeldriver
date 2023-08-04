@@ -10,30 +10,25 @@
 
 template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDER = RGB> class FastLedHandler {
  public:
-    FastLedHandler(const std::array<int, PIN_COUNT> &lightsPerPin, int pixelsPerLight = 144)
+    FastLedHandler(const std::array<uint8_t, PIN_COUNT> &lightsPerPin, int pixelsPerLight = 144)
         : PIXELS_PER_LIGHT_(pixelsPerLight),
-          PIXEL_COUNT_(PIXELS_PER_LIGHT_ * std::accumulate(lightsPerPin.begin(), lightsPerPin.end(), 0))
+          PIXEL_COUNT_(PIXELS_PER_LIGHT_ * std::accumulate(lightsPerPin.begin(), lightsPerPin.end(), 0)),
+          fastLedPixels_(PIXEL_COUNT_)
 
     {
-        fastLedPixels_.resize(PIXEL_COUNT_);
         setupFastled(lightsPerPin);
     }
 
-    void write(std::vector<CRGB> &frame) {
+    void write(const std::vector<CRGB> &frame) {
         assert(frame.size() == fastLedPixels_.size());
 
         fastLedPixels_ = frame;
         FastLED.show();
     }
 
-    void applyConfig(PixelConfig& pixelConfig) {
-        // TODO:
-    }
-
     void testLeds() {
         Serial.println("Testing LEDs...");
-        std::vector<CRGB> colors{CRGB::Red, CRGB::Green, CRGB::Blue};
-        for (const auto color : colors) {
+        for (const auto color : std::vector<CRGB>{CRGB::Red, CRGB::Green, CRGB::Blue}) {
             auto millisBefore = millis();
             FastLED.showColor(color);
             auto passedMillis = millis() - millisBefore;
@@ -42,10 +37,10 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
             FastLED.clear(true);
             delay(500);
         }
-        delay(2000);
+        delay(1000);
     }
 
-    int getPixelCount() {
+    int getPixelCount() const {
         return PIXEL_COUNT_;
     }
 
@@ -56,10 +51,9 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
     const int PIXEL_COUNT_;
 
     // The vector holding color values for each pixel.
-    // It's size is set in configure() and must not be changed afterwards!
     std::vector<CRGB> fastLedPixels_;
 
-    void setupFastled(const std::array<int, PIN_COUNT> &lightsPerPin) {
+    void setupFastled(const std::array<uint8_t, PIN_COUNT> &lightsPerPin) {
         static_assert(PIN_COUNT == 4, "setupFastLed() is hardcoded to handle exactly 4 pins!");
         // We can't use a loop here since addLeds() template parameters must be known at
         // compile-time
@@ -84,6 +78,7 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
                                                         lightsPerPin[3] * PIXELS_PER_LIGHT_);
             pixelOffset += lightsPerPin[3] * PIXELS_PER_LIGHT_;
         }
+
         FastLED.setCorrection(TypicalLEDStrip);
     }
 };

@@ -2,6 +2,7 @@
 #include "PixelDriver.hpp"
 #include "WifiCredentials.hpp"
 #include <Arduino.h>
+    #include <nvs_flash.h>
 
 /* BEGIN USER CONFIG */
 // Specify the maximum number of pins to which lights are to be connected in a specific scenario.
@@ -16,19 +17,20 @@ extern constexpr std::array<int, MAX_PIN_COUNT> PINS = {19};
 // If there are no lights connected to a specific, set lightCount to 0.
 // TODO: Receive lightsPerPin through artnet and store/load to/from non-volatile storage.
 // std::array<int, MAX_PIN_COUNT> lightsPerPin = {1, 1, 1, 1};
-std::array<int, MAX_PIN_COUNT> lightsPerPin = {5};
+std::array<uint8_t, MAX_PIN_COUNT> lightsPerPin = {5,0,0,0};
 const EOrder RGB_ORDER = EOrder::RGB;
 /* END USER CONFIG */
 
 void setup() {
     Serial.begin(115200);
 
-    /*
+     // nvs_flash_erase(); // erase the NVS partition and...
+     // nvs_flash_init(); // initialize the NVS partition.
+
     if (!Network::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
         ESP.restart();
     }
-    */
-    Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
+    // Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
 
     PixelDriver<MAX_PIN_COUNT, PINS, RGB_ORDER> pixelDriver(lightsPerPin, PIXELS_PER_LIGHT);
     pixelDriver.testLeds();
