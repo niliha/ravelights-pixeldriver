@@ -14,7 +14,7 @@ ArtnetHandler::ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelCo
 }
 
 void ArtnetHandler::read() {
-    // This calls onDmxFrame() whenever a ArtDMX packet is received
+    // These functions call onDmxFrame() whenever a ArtDMX packet is received
     artnetWifi_.read();
     artnetSerial_.read();
 }
@@ -67,7 +67,6 @@ void ArtnetHandler::onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t 
         return;
     }
 
-    // Store which universe has got in
     receivedUniverses_.insert(universeIndex);
 
     // Read universe and put into the right part of the display buffer

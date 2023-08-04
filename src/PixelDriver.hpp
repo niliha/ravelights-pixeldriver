@@ -11,7 +11,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
  public:
     PixelDriver(const std::array<uint8_t, 4> &defaultLightsPerPin, int pixelsPerLight = 144, int baudrate = 3000000,
                 int frameQueueCapacity = 3)
-        : fastLedHandler_(loadLightsPerOutputConfig(defaultLightsPerPin), pixelsPerLight),
+        : fastLedHandler_(loadOutputConfig(defaultLightsPerPin), pixelsPerLight),
           artnetQueue_(frameQueueCapacity), artnetHandler_(artnetQueue_, fastLedHandler_.getPixelCount(), baudrate),
           lastFrameMillis_(millis()) {
         // The Artnet task on core 0 does not block/sleep to reduce latency.
@@ -45,7 +45,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
     BlockingRingBuffer<std::variant<PixelFrame, PixelConfig>> artnetQueue_;
     unsigned long lastFrameMillis_;
 
-    std::array<uint8_t, 4> loadLightsPerOutputConfig(const std::array<uint8_t, 4> &defaultConfig) {
+    std::array<uint8_t, 4> loadOutputConfig(const std::array<uint8_t, 4> &defaultConfig) {
         Preferences preferences;
         preferences.begin(PREFERENCE_NAMESPACE, false);
         if (!preferences.isKey(LIGHTS_PER_OUTPUT_PREFERENCE_KEY)) {
