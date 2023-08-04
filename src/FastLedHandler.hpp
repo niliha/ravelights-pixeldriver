@@ -8,9 +8,9 @@
 
 #include "BlockingRingBuffer.hpp"
 
-template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDER = RGB> class FastLedHandler {
+template < const std::array<int,4> &PINS, EOrder RGB_ORDER = RGB> class FastLedHandler {
  public:
-    FastLedHandler(const std::array<uint8_t, PIN_COUNT> &lightsPerPin, int pixelsPerLight = 144)
+    FastLedHandler(const std::array<uint8_t,4> &lightsPerPin, int pixelsPerLight = 144)
         : PIXELS_PER_LIGHT_(pixelsPerLight),
           PIXEL_COUNT_(PIXELS_PER_LIGHT_ * std::accumulate(lightsPerPin.begin(), lightsPerPin.end(), 0)),
           fastLedPixels_(PIXEL_COUNT_)
@@ -53,8 +53,7 @@ template <int PIN_COUNT, const std::array<int, PIN_COUNT> &PINS, EOrder RGB_ORDE
     // The vector holding color values for each pixel.
     std::vector<CRGB> fastLedPixels_;
 
-    void setupFastled(const std::array<uint8_t, PIN_COUNT> &lightsPerPin) {
-        static_assert(PIN_COUNT == 4, "setupFastLed() is hardcoded to handle exactly 4 pins!");
+    void setupFastled(const std::array<uint8_t,4> &lightsPerPin) {
         // We can't use a loop here since addLeds() template parameters must be known at
         // compile-time
         int pixelOffset = 0;
