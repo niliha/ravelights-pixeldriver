@@ -13,19 +13,19 @@
 
 class ArtnetHandler {
  public:
-    ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelConfig>> &frameQueue, int pixelCount,
+    ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &frameQueue, int pixelCount,
                   int baudrate = 3000000);
     void read();
 
  private:
     static const uint16_t CONFIG_UNIVERSE_INDEX = UINT8_MAX;
-    // Lights per output for 4 pins + checksum
-    static const uint16_t CONFIG_UNIVERSE_LENGTH = 5;
+    // Pixels per output for 4 pins (uint32_t) + checksum (uint32_t)
+    static const uint16_t CONFIG_UNIVERSE_LENGTH = 5 * 4;
 
     const int PIXEL_COUNT_;
     const int UNIVERSE_COUNT_;
 
-    BlockingRingBuffer<std::variant<PixelFrame, PixelConfig>> &artnetQueue_;
+    BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &artnetQueue_;
     ArtnetWifi artnetWifi_;
     ArtnetSerial artnetSerial_;
     std::vector<CRGB> artnetFrame_;

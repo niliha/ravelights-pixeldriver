@@ -9,12 +9,10 @@
 
 template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDriver {
  public:
-    PixelDriver(const std::array<uint8_t, 4> &defaultLightsPerPin, int pixelsPerLight = 144, int baudrate = 3000000,
-                int frameQueueCapacity = 3)
-        : fastLedHandler_(loadOutputConfig(defaultLightsPerPin), pixelsPerLight),
-          artnetQueue_(frameQueueCapacity), artnetHandler_(artnetQueue_, fastLedHandler_.getPixelCount(), baudrate),
-          lastFrameMillis_(millis()) {
-        // The Artnet task on core 0 does not block/sleep to reduce latency.
+    PixelDriver(const PixelOutputConfig &pixelsPerOutputFallback, int baudrate = 3000000, int frameQueueCapacity = 3)
+        : fastLedHandler_(loadOutputConfig(pixelsPerOutputFallback)), artnetQueue_(frameQueueCapacity),
+          artnetHandler_(artnetQueue_, fastLedHandler_.getPixelCount(), baudrate), lastFrameMillis_(millis()) {
+        // The Artnet task on core 0 does not yield to reduce latency.
         // Therefore, the watchdog on core 0 is not reset anymore, since the idle task is not resumed.
         // It is disabled to avoid watchdog timeouts resulting in a reboot.
         disableCore0WDT();
@@ -38,56 +36,48 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
 
  private:
     static constexpr const char *PREFERENCE_NAMESPACE = "ravelights";
-    static constexpr const char *LIGHTS_PER_OUTPUT_PREFERENCE_KEY = "output_config";
+    static constexpr const char *OUTPUT_CONFIG_PREFERENCE_KEY = "output_config";
 
     FastLedHandler<PINS, RGB_ORDER> fastLedHandler_;
     ArtnetHandler artnetHandler_;
-    BlockingRingBuffer<std::variant<PixelFrame, PixelConfig>> artnetQueue_;
+    BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> artnetQueue_;
     unsigned long lastFrameMillis_;
+    PixelOutputConfig pixelsPerOutput_;
 
-    std::array<uint8_t, 4> loadOutputConfig(const std::array<uint8_t, 4> &defaultConfig) {
+    PixelOutputConfig loadOutputConfig(const PixelOutputConfig &fallbackOutputConfig) {
         Preferences preferences;
         preferences.begin(PREFERENCE_NAMESPACE, false);
-        if (!preferences.isKey(LIGHTS_PER_OUTPUT_PREFERENCE_KEY)) {
-            preferences.putBytes(LIGHTS_PER_OUTPUT_PREFERENCE_KEY, defaultConfig.data(), defaultConfig.size());
+        if (!preferences.isKey(OUTPUT_CONFIG_PREFERENCE_KEY)) {
+            preferences.putBytes(OUTPUT_CONFIG_PREFERENCE_KEY, fallbackOutputConfig.data(),
+                                 fallbackOutputConfig.size());
             preferences.end();
-            Serial.printf("Using default lights per output config (%d, %d, %d, %d)\n", defaultConfig[0],
-                          defaultConfig[1], defaultConfig[2], defaultConfig[3]);
-            return defaultConfig;
+            Serial.printf("Using default lights per output config (%d, %d, %d, %d)\n", fallbackOutputConfig[0],
+                          fallbackOutputConfig[1], fallbackOutputConfig[2], fallbackOutputConfig[3]);
+            pixelsPerOutput_ = fallbackOutputConfig;
+            return fallbackOutputConfig;
         }
 
-        std::array<uint8_t, 4> lightsPerOutput;
-        preferences.getBytes(LIGHTS_PER_OUTPUT_PREFERENCE_KEY, lightsPerOutput.data(), lightsPerOutput.size());
+        preferences.getBytes(OUTPUT_CONFIG_PREFERENCE_KEY, pixelsPerOutput_.data(), pixelsPerOutput_.size());
         preferences.end();
-        Serial.printf("Using lights per output config from flash (%d, %d, %d, %d)\n", lightsPerOutput[0],
-                      lightsPerOutput[1], lightsPerOutput[2], lightsPerOutput[3]);
-        return lightsPerOutput;
+        Serial.printf("Using lights per output config from flash (%d, %d, %d, %d)\n", pixelsPerOutput_[0],
+                      pixelsPerOutput_[1], pixelsPerOutput_[2], pixelsPerOutput_[3]);
+        return pixelsPerOutput_;
     }
 
-    void applyPixelConfig(const PixelConfig &pixelConfig) {
-        Preferences preferences;
-        preferences.begin(PREFERENCE_NAMESPACE, false);
-        if (preferences.isKey(LIGHTS_PER_OUTPUT_PREFERENCE_KEY)) {
-            std::array<uint8_t, 4> oldLightsPerOutput;
-            preferences.getBytes(LIGHTS_PER_OUTPUT_PREFERENCE_KEY, oldLightsPerOutput.data(),
-                                 oldLightsPerOutput.size());
-            if (pixelConfig.lightsPerOutput == oldLightsPerOutput) {
-                Serial.printf("Not applying received output config since it is equal to current one (%d, %d, %d, %d)\n",
-                              pixelConfig.lightsPerOutput[0], pixelConfig.lightsPerOutput[1],
-                              pixelConfig.lightsPerOutput[2], pixelConfig.lightsPerOutput[3]);
-
-                preferences.end();
-                return;
-            }
+    void applyPixelConfig(const PixelOutputConfig &outputConfig) {
+        if (outputConfig == pixelsPerOutput_) {
+            Serial.printf("Not applying received output config since it is equal to current one (%d, %d, %d, %d)\n",
+                          outputConfig[0], outputConfig[1], outputConfig[2], outputConfig[3]);
+            return;
         }
 
-        preferences.putBytes(LIGHTS_PER_OUTPUT_PREFERENCE_KEY, pixelConfig.lightsPerOutput.data(),
-                             pixelConfig.lightsPerOutput.size());
+        Preferences preferences;
+        preferences.begin(PREFERENCE_NAMESPACE, false);
+        preferences.putBytes(OUTPUT_CONFIG_PREFERENCE_KEY, outputConfig.data(), outputConfig.size());
         preferences.end();
 
-        Serial.printf("Restarting ESP32 to apply received output config (%d, %d, %d, %d)...\n",
-                      pixelConfig.lightsPerOutput[0], pixelConfig.lightsPerOutput[1], pixelConfig.lightsPerOutput[2],
-                      pixelConfig.lightsPerOutput[3]);
+        Serial.printf("Restarting ESP32 to apply received output config (%d, %d, %d, %d)...\n", outputConfig[0],
+                      outputConfig[1], outputConfig[2], outputConfig[3]);
         ESP.restart();
     }
 
@@ -95,7 +85,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
         Serial.printf("fastledTask: started on core %d\n", xPortGetCoreID());
 
         while (true) {
-            std::variant<PixelFrame, PixelConfig> pixelVariant;
+            std::variant<PixelFrame, PixelOutputConfig> pixelVariant;
             artnetQueue_.pop(pixelVariant);
 
             std::visit(
@@ -105,7 +95,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
                         fastLedHandler_.write(arg);
                         Serial.printf("%d ms since last frame\n", millis() - lastFrameMillis_);
                         lastFrameMillis_ = millis();
-                    } else if constexpr (std::is_same_v<T, PixelConfig>) {
+                    } else if constexpr (std::is_same_v<T, PixelOutputConfig>) {
                         applyPixelConfig(arg);
                     }
                 },

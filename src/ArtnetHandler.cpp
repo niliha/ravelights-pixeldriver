@@ -2,8 +2,8 @@
 
 #include "ArtnetHandler.hpp"
 
-ArtnetHandler::ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelConfig>> &frameQueue, int pixelCount,
-                             int baudrate)
+ArtnetHandler::ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &frameQueue,
+                             int pixelCount, int baudrate)
     : artnetQueue_(frameQueue), artnetSerial_(baudrate), PIXEL_COUNT_(pixelCount), artnetFrame_(pixelCount),
       UNIVERSE_COUNT_(std::ceil((pixelCount * 3) / static_cast<float>(512))) {
     // Improves UDP throughput drastically
@@ -28,21 +28,22 @@ void ArtnetHandler::setArtnetCallback() {
     });
 }
 
-void ArtnetHandler::handleConfig(uint16_t length, uint8_t *data) {
+void ArtnetHandler::handleConfig(uint16_t length, uint8_t *dataBytes) {
     if (length != CONFIG_UNIVERSE_LENGTH) {
         Serial.printf("ERROR: Expected %d config channels but got %d\n", CONFIG_UNIVERSE_LENGTH, length);
         return;
     }
 
-    std::array<uint8_t, 4> lightsPerOutput = {data[0], data[1], data[2], data[3]};
-    int checksum = std::accumulate(lightsPerOutput.begin(), lightsPerOutput.end(), 0);
-    if (checksum != data[4]) {
-        Serial.printf("ERROR: Calculated config checksum %d does not match with %d\n", checksum, data[4]);
+    uint32_t *dataInts = reinterpret_cast<uint32_t *>(dataBytes);
+    PixelOutputConfig pixelsPerOutput = {dataInts[0], dataInts[1], dataInts[2], dataInts[3]};
+
+    uint32_t checksum = std::accumulate(pixelsPerOutput.begin(), pixelsPerOutput.end(), 0);
+    if (checksum != dataInts[4]) {
+        Serial.printf("ERROR: Calculated config checksum %d does not match with %d\n", checksum, dataBytes[4]);
         return;
     }
 
-    PixelConfig pixelConfig(lightsPerOutput);
-    artnetQueue_.push(std::move(pixelConfig));
+    artnetQueue_.push(std::move(pixelsPerOutput));
     return;
 }
 
