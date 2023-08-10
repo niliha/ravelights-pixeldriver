@@ -67,6 +67,12 @@ void ArtnetHandler::onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t 
         return;
     }
 
+    if (receivedUniverses_.find(universeIndex) != receivedUniverses_.end()) {
+        Serial.printf("WARN: Received duplicate universe %d\n", universeIndex);
+        return;
+    }
+
+    // Store which universe has got in
     receivedUniverses_.insert(universeIndex);
 
     // Read universe and put into the right part of the display buffer
