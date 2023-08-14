@@ -37,8 +37,8 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
 
  private:
     FastLedHandler<PINS, RGB_ORDER> fastLedHandler_;
-    ArtnetHandler artnetHandler_;
     BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> artnetQueue_;
+    ArtnetHandler artnetHandler_;
     unsigned long lastFrameMillis_;
 
     void fastledTask() {
@@ -53,7 +53,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
                     using T = std::decay_t<decltype(arg)>;
                     if constexpr (std::is_same_v<T, PixelFrame>) {
                         fastLedHandler_.write(arg);
-                        Serial.printf("%d ms since last frame\n", millis() - lastFrameMillis_);
+                        Serial.printf("%lu ms since last frame\n", millis() - lastFrameMillis_);
                         lastFrameMillis_ = millis();
                     } else if constexpr (std::is_same_v<T, PixelOutputConfig>) {
                         OutputConfigurator::apply(arg);

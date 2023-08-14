@@ -19,11 +19,13 @@ extern constexpr std::array<int, PIN_COUNT> OUTPUT_PINS = {19, 18, 22, 21};
 // If there are no pixels connected to a specific, set the count to 0.
 PixelOutputConfig pixelsPerOutput = {5 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT, 0 * PIXELS_PER_LIGHT, 0 * PIXELS_PER_LIGHT};
 
-
-
 const EOrder RGB_ORDER = EOrder::RGB;
 
-void setup() {
+extern "C" void app_main()
+{
+    // initialize arduino library before we start the tasks
+    initArduino();
+
     Serial.begin(115200);
 
      nvs_flash_erase(); // erase the NVS partition and...
@@ -44,5 +46,3 @@ void setup() {
     }
 }
 
-void loop() {
-}
