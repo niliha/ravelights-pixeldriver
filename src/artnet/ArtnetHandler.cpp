@@ -86,7 +86,7 @@ void ArtnetHandler::onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t 
         // Put the filled frame into the queue such that the FasLED task can consume it
         artnetQueue_.push(std::move(artnetFrame_));
         // Create a new vector for the next frame.
-        artnetFrame_ = std::vector<CRGB>(PIXEL_COUNT_);
+        artnetFrame_ = PixelFrame(PIXEL_COUNT_);
         // Reset information about received universes
         receivedUniverses_.clear();
     }

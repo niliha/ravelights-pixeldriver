@@ -1,8 +1,9 @@
-#include "Network.hpp"
-#include "PixelDriver.hpp"
-#include "WifiCredentials.hpp"
 #include <Arduino.h>
 #include <nvs_flash.h>
+
+#include "network/Network.hpp"
+#include "network/WifiCredentials.hpp"
+#include "PixelDriver.hpp"
 
 // Specify the maximum number of pins to which lights are to be connected in a specific scenario.
 // Right now the PixelDriver class is fixed to 4.

@@ -1,15 +1,14 @@
 #pragma once
 
 #include <ArtnetWifi.h>
-#include <FastLED.h>
 #include <set>
 #include <variant>
 #include <vector>
 
-#include "ArtnetSerial.hpp"
-#include "BlockingRingBuffer.hpp"
-#include "PixelConfig.hpp"
-#include "PixelFrame.hpp"
+#include "artnet/ArtnetSerial.hpp"
+#include "artnet/BlockingRingBuffer.hpp"
+#include "artnet/PixelOutputConfig.hpp"
+#include "common/PixelFrame.hpp"
 
 class ArtnetHandler {
  public:
@@ -28,7 +27,7 @@ class ArtnetHandler {
     BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &artnetQueue_;
     ArtnetWifi artnetWifi_;
     ArtnetSerial artnetSerial_;
-    std::vector<CRGB> artnetFrame_;
+    PixelFrame artnetFrame_;
     std::set<int> receivedUniverses_;
 
     void onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data);

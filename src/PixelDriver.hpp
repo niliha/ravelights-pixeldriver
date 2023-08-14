@@ -3,9 +3,9 @@
 #include <Preferences.h>
 #include <variant>
 
-#include "ArtnetHandler.hpp"
-#include "FastLedHandler.hpp"
-#include "PixelConfig.hpp"
+#include "artnet/ArtnetHandler.hpp"
+#include "artnet/PixelOutputConfig.hpp"
+#include "fastled/FastLedHandler.hpp"
 
 template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDriver {
  public:

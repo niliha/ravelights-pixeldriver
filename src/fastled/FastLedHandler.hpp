@@ -2,11 +2,10 @@
 
 #define FASTLED_ESP32_I2S  // Alternative parallel output driver
 #include <FastLED.h>
+#include <common/PixelFrame.hpp>
 
 #include <numeric>
 #include <vector>
-
-#include "BlockingRingBuffer.hpp"
 
 template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedHandler {
  public:
@@ -17,10 +16,11 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
         setupFastled(pixelsPerOutput);
     }
 
-    void write(const std::vector<CRGB> &frame) {
+    void write(const PixelFrame &frame) {
         assert(frame.size() == fastLedPixels_.size());
+        std::transform(frame.begin(), frame.end(), fastLedPixels_.begin(),
+                       [](Pixel pixel) { return CRGB(pixel.r, pixel.g, pixel.b); });
 
-        fastLedPixels_ = frame;
         FastLED.show();
     }
 
@@ -35,7 +35,6 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
             FastLED.clear(true);
             delay(500);
         }
-        delay(1000);
     }
 
     int getPixelCount() const {
