@@ -28,16 +28,16 @@ void ArtnetSerial::read() {
     case State::START_DETECTION: {
         uint8_t incomingByte = Serial2.read();
 
-        // The next character of the Artnet header has been received.
+        // The next character of the Artnet header has been received
         if (incomingByte == ARTNET_HEADER[currentBufferIndex_ + 1]) {
             buffer_[++currentBufferIndex_] = incomingByte;
-            // An invalid header byte has been received for this position
         } else {
+            // An invalid header byte has been received for this position
             startOver(false);
             break;
         }
+
         // All bytes of the Artnet header (including the null terminator) have been received.
-        // Continue to parse the packet
         if (currentBufferIndex_ == strlen(ARTNET_HEADER)) {
             if (!isSynced_) {
                 isSynced_ = true;
@@ -62,8 +62,8 @@ void ArtnetSerial::read() {
             }
             break;
         }
-    case State::DMX_DATA_LENGTH_PARSING: {
 
+    case State::DMX_DATA_LENGTH_PARSING: {
         currentBufferIndex_ +=
             Serial2.read(&buffer_[currentBufferIndex_ + 1], ART_DMX_LENGTH_LO_OFFSET - currentBufferIndex_);
 
@@ -79,8 +79,8 @@ void ArtnetSerial::read() {
         }
         break;
     }
-    case State::DMX_DATA_READING: {
 
+    case State::DMX_DATA_READING: {
         currentBufferIndex_ +=
             Serial2.read(&buffer_[currentBufferIndex_ + 1], maximumBufferIndex_ - currentBufferIndex_);
 
@@ -88,7 +88,7 @@ void ArtnetSerial::read() {
             uint8_t sequence = buffer_[ART_DMX_SEQUENCE_OFFSET];
             uint16_t universe = buffer_[ART_DMX_UNIVERSE_HI_OFFSET] << 8 | buffer_[ART_DMX_UNIVERSE_LO_OFFSET];
             if (onArtDmxFrame_ != nullptr) {
-                onArtDmxFrame_(universe, dmxDataLength_, sequence, buffer_ + ART_DMX_DATA_OFFSET);
+                onArtDmxFrame_(universe, dmxDataLength_, sequence, &buffer_[ART_DMX_DATA_OFFSET]);
             }
             startOver(true);
         }
