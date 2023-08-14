@@ -4,8 +4,8 @@
 
 ArtnetHandler::ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &frameQueue,
                              int pixelCount, int baudrate)
-    : artnetQueue_(frameQueue), artnetSerial_(baudrate), PIXEL_COUNT_(pixelCount), artnetFrame_(pixelCount),
-      UNIVERSE_COUNT_(std::ceil((pixelCount * 3) / static_cast<float>(512))) {
+    : PIXEL_COUNT_(pixelCount), UNIVERSE_COUNT_(std::ceil((pixelCount * 3) / static_cast<float>(512))),
+      artnetQueue_(frameQueue), artnetSerial_(baudrate), artnetFrame_(pixelCount) {
     // Improves UDP throughput drastically
     WiFi.setSleep(false);
 

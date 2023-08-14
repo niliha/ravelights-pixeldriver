@@ -30,7 +30,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
             auto millisBefore = millis();
             FastLED.showColor(color);
             auto passedMillis = millis() - millisBefore;
-            Serial.printf("show() took %d ms\n", passedMillis);
+            Serial.printf("show() took %lu ms\n", passedMillis);
             delay(500);
             FastLED.clear(true);
             delay(500);
