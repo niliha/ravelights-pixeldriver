@@ -12,11 +12,11 @@ PixelOutputConfig load(const PixelOutputConfig &fallbackOutputConfig) {
     PreferencesRaii preferences(PREFERENCE_NAMESPACE);
 
     if (preferences.isKey(OUTPUT_CONFIG_PREFERENCE_KEY)) {
-        preferences.getBytes(OUTPUT_CONFIG_PREFERENCE_KEY, pixelsPerOutput_.data(), pixelsPerOutput_.size());
+        preferences.getBytes(OUTPUT_CONFIG_PREFERENCE_KEY, pixelsPerOutput_.data(), pixelsPerOutput_.size() * sizeof(pixelsPerOutput_[0]));
         Serial.printf("Using pixels per output config from flash (%d, %d, %d, %d)\n", pixelsPerOutput_[0],
                       pixelsPerOutput_[1], pixelsPerOutput_[2], pixelsPerOutput_[3]);
     } else {
-        preferences.putBytes(OUTPUT_CONFIG_PREFERENCE_KEY, fallbackOutputConfig.data(), fallbackOutputConfig.size());
+        preferences.putBytes(OUTPUT_CONFIG_PREFERENCE_KEY, fallbackOutputConfig.data(), fallbackOutputConfig.size() * sizeof(fallbackOutputConfig[0]));
         Serial.printf("Using default pixels per output config (%d, %d, %d, %d)\n", fallbackOutputConfig[0],
                       fallbackOutputConfig[1], fallbackOutputConfig[2], fallbackOutputConfig[3]);
         pixelsPerOutput_ = fallbackOutputConfig;
@@ -27,13 +27,17 @@ PixelOutputConfig load(const PixelOutputConfig &fallbackOutputConfig) {
 
 void apply(const PixelOutputConfig &outputConfig) {
     if (outputConfig == pixelsPerOutput_) {
-        Serial.printf("Not applying received pixels per output config since it is equal to current one (%d, %d, %d, %d)\n",
-                      outputConfig[0], outputConfig[1], outputConfig[2], outputConfig[3]);
+        Serial.printf(
+            "Not applying received pixels per output config since it is equal to current one (%d, %d, %d, %d)\n",
+            outputConfig[0], outputConfig[1], outputConfig[2], outputConfig[3]);
         return;
     }
 
-    PreferencesRaii preferences(PREFERENCE_NAMESPACE);
-    preferences.putBytes(OUTPUT_CONFIG_PREFERENCE_KEY, outputConfig.data(), outputConfig.size());
+    {
+        PreferencesRaii preferences(PREFERENCE_NAMESPACE);
+        preferences.putBytes(OUTPUT_CONFIG_PREFERENCE_KEY, outputConfig.data(), outputConfig.size() * sizeof(outputConfig[0]));
+    }
+
     Serial.printf("Restarting ESP32 to apply received pixels per output config (%d, %d, %d, %d)...\n", outputConfig[0],
                   outputConfig[1], outputConfig[2], outputConfig[3]);
     ESP.restart();
