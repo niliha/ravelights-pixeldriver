@@ -28,8 +28,8 @@ extern "C" void app_main()
 
     Serial.begin(115200);
 
-     nvs_flash_erase(); // erase the NVS partition and...
-     nvs_flash_init(); // initialize the NVS partition.
+    // nvs_flash_erase(); // erase the NVS partition and...
+    // nvs_flash_init(); // initialize the NVS partition.
 
     if (!Network::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
         ESP.restart();
