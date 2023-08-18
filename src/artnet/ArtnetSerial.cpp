@@ -1,8 +1,10 @@
 #include "ArtnetSerial.hpp"
 
 ArtnetSerial::ArtnetSerial(int baudRate) : onArtDmxFrame_(nullptr) {
+    // Flush UART RX HW buffer to SW buffer on every received byte
     Serial2.setRxFIFOFull(1);
-    Serial2.setRxBufferSize(2 * ART_DMX_MAXIMUM_LENGTH);
+    // Increase SW RX buffer to hold up to 15 universes (corresponds to 16 ravelights)
+    Serial2.setRxBufferSize(15 * ART_DMX_MAXIMUM_LENGTH);
     Serial2.begin(baudRate, SERIAL_8N1, UART2_RX_PIN, UART2_TX_PIN);
 }
 

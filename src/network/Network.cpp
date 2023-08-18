@@ -2,30 +2,33 @@
 #include "WiFi.h"
 
 namespace Network {
-bool connectToWifi(std::string wifiSsid, std::string wifiPassword) {
-    WiFi.begin(wifiSsid.c_str(), wifiPassword.c_str());
-    // Wait for connection
-    Serial.print("Connecting to WiFi... ");
+bool connectToWifi(std::string ssid, std::string password) {
+    Serial.printf("Connecting to WiFi with SSID %s...\n", ssid.c_str());
+    WiFi.begin(ssid.c_str(), password.c_str());
+
+    // Wait 10 seconds for connection to be established
     for (unsigned i = 0; i <= 20; i++) {
         if (WiFi.status() == WL_CONNECTED) {
-            Serial.print(" SUCCESS! IP address:  ");
+            Serial.printf("\nSUCCESS! IP address: ");
             Serial.println(WiFi.localIP());
             return true;
         }
         delay(500);
         Serial.print(".");
     }
-    Serial.println("ERROR! Connection failed.");
+
+    Serial.printf("\nERROR: Connection failed.");
     return false;
 }
 
-void initWifiAccessPoint(std::string wifiSsid, std::string wifiPassword) {
-    Serial.println("Setting up access point...");
-    WiFi.mode(WIFI_AP);  // Changing ESP32 wifi mode to AccessPoint
-    WiFi.softAP(wifiSsid.c_str(), wifiPassword.c_str());
-    IPAddress ipAddress = WiFi.softAPIP();
+void initWifiAccessPoint(std::string ssid, std::string password) {
+    Serial.printf("Setting up access point with SSID %s...\n", ssid.c_str());
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(ssid.c_str(), password.c_str());
+
+    // Default IP is 192.168.4.1
     Serial.print("AP IP address: ");
-    Serial.println(ipAddress);  // Default IP is 192.168.4.1
+    Serial.println(WiFi.softAPIP());
 }
 
 }  // namespace Network
