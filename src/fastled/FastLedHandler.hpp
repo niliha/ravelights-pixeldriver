@@ -38,15 +38,16 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
     }
 
     void testRavelights() {
-        std::vector<CRGB> colors{CRGB::White, CRGB::Red, CRGB::Green, CRGB::Blue};
+        const std::vector<CRGB> colors{CRGB::White, CRGB::Red, CRGB::Green, CRGB::Blue};
+        const int pixelsPerLight = 144;
 
         int color_index = 0;
         for (int light_index = 0; light_index < PIXEL_COUNT_ / 144; light_index++) {
-            for (int lightOffset = 0; lightOffset < 144; lightOffset++) {
-                fastLedPixels_[144 * light_index + lightOffset] = colors[color_index];
+            for (int pixelOffset = 0; pixelOffset < pixelsPerLight; pixelOffset++) {
+                fastLedPixels_[light_index * pixelsPerLight + pixelOffset] = colors[color_index];
             }
             // Change color after each ravelight
-            color_index = (color_index + 1) % (colors.size() - 1);
+            color_index = (color_index + 1) % colors.size();
         }
 
         auto millisBefore = millis();

@@ -31,18 +31,17 @@ extern "C" void app_main() {
     // nvs_flash_erase(); // erase the NVS partition and...
     // nvs_flash_init(); // initialize the NVS partition.
 
-     if (!Network::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
-         ESP.restart();
-     }
+    if (!Network::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
+        ESP.restart();
+    }
     // Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
 
     PixelDriver<OUTPUT_PINS, RGB_ORDER> pixelDriver(pixelsPerOutput, 1500000);
 
-
-    for (int i = 0; i< 3; i++) {
-    pixelDriver.testLeds();
+    for (int i = 0; i < 3; i++) {
+        pixelDriver.testLeds();
     }
-    
+
     pixelDriver.start();
 
     while (true) {
