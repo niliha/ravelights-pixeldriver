@@ -1,8 +1,8 @@
 #pragma once
 
-#define FASTLED_ESP32_I2S  // Alternative parallel output driver
 #include <FastLED.h>
-#include <common/PixelFrame.hpp>
+
+#include "common/PixelFrame.hpp"
 
 #include <numeric>
 #include <vector>
@@ -35,6 +35,27 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
             FastLED.clear(true);
             delay(500);
         }
+    }
+
+    void testRavelights() {
+        std::vector<CRGB> colors{CRGB::White, CRGB::Red, CRGB::Green, CRGB::Blue};
+
+        int color_index = 0;
+        for (int light_index = 0; light_index < PIXEL_COUNT_ / 144; light_index++) {
+            for (int lightOffset = 0; lightOffset < 144; lightOffset++) {
+                fastLedPixels_[144 * light_index + lightOffset] = colors[color_index];
+            }
+            // Change color after each ravelight
+            color_index = (color_index + 1) % (colors.size() - 1);
+        }
+
+        auto millisBefore = millis();
+        FastLED.show();
+        auto passedMillis = millis() - millisBefore;
+        Serial.printf("show() took %lu ms\n", passedMillis);
+        delay(500);
+        FastLED.clear(true);
+        delay(500);
     }
 
     int getPixelCount() const {

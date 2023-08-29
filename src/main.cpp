@@ -17,8 +17,8 @@ extern constexpr std::array<int, PIN_COUNT> OUTPUT_PINS = {19, 18, 22, 21};
 
 // For each output pin, specify how many individually addressable pixels are connected.
 // If there are no pixels connected to a specific, set the count to 0.
-PixelOutputConfig pixelsPerOutput = {5 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT, 0 * PIXELS_PER_LIGHT,
-                                     0 * PIXELS_PER_LIGHT};
+PixelOutputConfig pixelsPerOutput = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
+                                     6 * PIXELS_PER_LIGHT};
 
 const EOrder RGB_ORDER = EOrder::RGB;
 
@@ -37,7 +37,12 @@ extern "C" void app_main() {
     // Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
 
     PixelDriver<OUTPUT_PINS, RGB_ORDER> pixelDriver(pixelsPerOutput, 1500000);
+
+
+    for (int i = 0; i< 3; i++) {
     pixelDriver.testLeds();
+    }
+    
     pixelDriver.start();
 
     while (true) {
