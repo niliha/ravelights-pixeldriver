@@ -36,7 +36,7 @@ extern "C" void app_main() {
     }
     // Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
 
-    PixelDriver<OUTPUT_PINS, RGB_ORDER> pixelDriver(pixelsPerOutput, 1500000);
+    PixelDriver<OUTPUT_PINS, RGB_ORDER> pixelDriver(pixelsPerOutput, ArtnetHandler::Mode::WIFI_ONLY);
 
     for (int i = 0; i < 3; i++) {
         pixelDriver.testLeds();

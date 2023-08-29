@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ArtnetWifi.h>
+#include <memory>
 #include <set>
 #include <variant>
 #include <vector>
@@ -12,8 +13,10 @@
 
 class ArtnetHandler {
  public:
+    enum class Mode { WIFI_ONLY, SERIAL_ONLY, WIFI_AND_SERIAL };
+
     ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &frameQueue, int pixelCount,
-                  int baudrate = 3000000);
+                  Mode artnetMode, int baudrate = 3000000);
     void read();
 
  private:
@@ -25,8 +28,8 @@ class ArtnetHandler {
     const int UNIVERSE_COUNT_;
 
     BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &artnetQueue_;
-    ArtnetWifi artnetWifi_;
-    ArtnetSerial artnetSerial_;
+    std::unique_ptr<ArtnetWifi> artnetWifi_;
+    std::unique_ptr<ArtnetSerial> artnetSerial_;
     PixelFrame artnetFrame_;
     std::set<int> receivedUniverses_;
 
