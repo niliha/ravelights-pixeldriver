@@ -24,7 +24,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
         FastLED.show();
     }
 
-    void testLeds() {
+    void testPixels() {
         Serial.println("Testing LEDs...");
         for (const auto color : std::vector<CRGB>{CRGB::Red, CRGB::Green, CRGB::Blue}) {
             auto millisBefore = millis();
@@ -32,31 +32,36 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
             auto passedMillis = millis() - millisBefore;
             Serial.printf("show() took %lu ms\n", passedMillis);
             delay(500);
+
             FastLED.clear(true);
             delay(500);
         }
     }
 
-    void testRavelights() {
+    void testLights(int pixelsPerLight) {
+        assert(PIXEL_COUNT_ % pixelsPerLight == 0);
+
         const std::vector<CRGB> colors{CRGB::White, CRGB::Red, CRGB::Green, CRGB::Blue};
-        const int pixelsPerLight = 144;
 
-        int color_index = 0;
-        for (int light_index = 0; light_index < PIXEL_COUNT_ / 144; light_index++) {
-            for (int pixelOffset = 0; pixelOffset < pixelsPerLight; pixelOffset++) {
-                fastLedPixels_[light_index * pixelsPerLight + pixelOffset] = colors[color_index];
+        for (int i = 0; i < 3; i++) {
+            int color_index = 0;
+            for (int light_index = 0; light_index < PIXEL_COUNT_ / pixelsPerLight; light_index++) {
+                for (int pixelOffset = 0; pixelOffset < pixelsPerLight; pixelOffset++) {
+                    fastLedPixels_[light_index * pixelsPerLight + pixelOffset] = colors[color_index];
+                }
+                // Change color after each light
+                color_index = (color_index + 1) % colors.size();
             }
-            // Change color after each ravelight
-            color_index = (color_index + 1) % colors.size();
-        }
 
-        auto millisBefore = millis();
-        FastLED.show();
-        auto passedMillis = millis() - millisBefore;
-        Serial.printf("show() took %lu ms\n", passedMillis);
-        delay(500);
-        FastLED.clear(true);
-        delay(500);
+            auto millisBefore = millis();
+            FastLED.show();
+            auto passedMillis = millis() - millisBefore;
+            Serial.printf("show() took %lu ms\n", passedMillis);
+            delay(500);
+
+            FastLED.clear(true);
+            delay(500);
+        }
     }
 
     int getPixelCount() const {

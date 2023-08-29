@@ -36,5 +36,5 @@ class ArtnetHandler {
     void onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data);
     void setChannel(uint16_t universeIndex, int channelIndex, uint8_t value);
     void handleConfig(uint16_t length, uint8_t *data);
-    void setArtnetCallback();
+    void init();
 };

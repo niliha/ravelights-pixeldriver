@@ -38,9 +38,7 @@ extern "C" void app_main() {
 
     PixelDriver<OUTPUT_PINS, RGB_ORDER> pixelDriver(pixelsPerOutput, ArtnetHandler::Mode::WIFI_ONLY);
 
-    for (int i = 0; i < 3; i++) {
-        pixelDriver.testLeds();
-    }
+    pixelDriver.testLights(PIXELS_PER_LIGHT);
 
     pixelDriver.start();
 

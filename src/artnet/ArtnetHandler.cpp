@@ -6,8 +6,6 @@ ArtnetHandler::ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelOu
                              int pixelCount, Mode artnetMode, int baudrate)
     : PIXEL_COUNT_(pixelCount), UNIVERSE_COUNT_(std::ceil((pixelCount * 3) / static_cast<float>(512))),
       artnetQueue_(frameQueue), artnetFrame_(pixelCount) {
-    // Improves UDP throughput drastically
-    WiFi.setSleep(false);
 
     if (artnetMode == Mode::WIFI_ONLY || artnetMode == Mode::WIFI_AND_SERIAL) {
         artnetWifi_ = std::make_unique<ArtnetWifi>();
@@ -16,11 +14,7 @@ ArtnetHandler::ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelOu
         artnetSerial_ = std::make_unique<ArtnetSerial>(baudrate);
     }
 
-    setArtnetCallback();
-
-    if (artnetWifi_ != nullptr) {
-        artnetWifi_->begin();
-    }
+    init();
 }
 
 void ArtnetHandler::read() {
@@ -34,11 +28,13 @@ void ArtnetHandler::read() {
     }
 }
 
-void ArtnetHandler::setArtnetCallback() {
+void ArtnetHandler::init() {
     if (artnetWifi_ != nullptr) {
         artnetWifi_->setArtDmxFunc([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
             this->onDmxFrame(universeIndex, length, sequence, data);
         });
+        // Improves UDP throughput drastically
+        WiFi.setSleep(false);
     }
 
     if (artnetSerial_ != nullptr) {
@@ -46,6 +42,7 @@ void ArtnetHandler::setArtnetCallback() {
             [this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
                 this->onDmxFrame(universeIndex, length, sequence, data);
             });
+        artnetWifi_->begin();
     }
 }
 
