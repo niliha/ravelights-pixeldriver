@@ -33,8 +33,8 @@ void ArtnetHandler::init() {
         artnetWifi_->setArtDmxFunc([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
             this->onDmxFrame(universeIndex, length, sequence, data);
         });
-        // Improves UDP throughput drastically
-        WiFi.setSleep(false);
+        WiFi.setSleep(false);  // Improves UDP throughput drastically
+        artnetWifi_->begin();
     }
 
     if (artnetSerial_ != nullptr) {
@@ -42,7 +42,6 @@ void ArtnetHandler::init() {
             [this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
                 this->onDmxFrame(universeIndex, length, sequence, data);
             });
-        artnetWifi_->begin();
     }
 }
 
