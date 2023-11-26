@@ -1,10 +1,14 @@
 #pragma once
 
+#include <optional>
+
 #include "artnet/PixelOutputConfig.hpp"
 
 namespace OutputConfigurator {
 
-PixelOutputConfig load(const PixelOutputConfig &fallbackOutputConfig);
-void apply(const PixelOutputConfig &outputConfig);
+PixelOutputConfig loadOrApplyFallback(const PixelOutputConfig &fallbackOutputConfig);
+std::optional<PixelOutputConfig> load();
+void apply(const PixelOutputConfig &newOutputConfig);
+void applyAndReboot(const PixelOutputConfig &newOutputConfig);
 
 }  // namespace OutputConfigurator

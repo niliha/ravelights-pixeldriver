@@ -6,40 +6,53 @@ namespace OutputConfigurator {
 static constexpr const char *PREFERENCE_NAMESPACE = "ravelights";
 static constexpr const char *OUTPUT_CONFIG_PREFERENCE_KEY = "output_config";
 
-PixelOutputConfig pixelsPerOutput_;
-
-PixelOutputConfig load(const PixelOutputConfig &fallbackOutputConfig) {
-    PreferencesRaii preferences(PREFERENCE_NAMESPACE);
-
-    if (preferences.isKey(OUTPUT_CONFIG_PREFERENCE_KEY)) {
-        preferences.getBytes(OUTPUT_CONFIG_PREFERENCE_KEY, pixelsPerOutput_.data(), pixelsPerOutput_.size() * sizeof(pixelsPerOutput_[0]));
-        Serial.printf("Using pixels per output config from flash (%d, %d, %d, %d)\n", pixelsPerOutput_[0],
-                      pixelsPerOutput_[1], pixelsPerOutput_[2], pixelsPerOutput_[3]);
-    } else {
-        preferences.putBytes(OUTPUT_CONFIG_PREFERENCE_KEY, fallbackOutputConfig.data(), fallbackOutputConfig.size() * sizeof(fallbackOutputConfig[0]));
-        Serial.printf("Using default pixels per output config (%d, %d, %d, %d)\n", fallbackOutputConfig[0],
-                      fallbackOutputConfig[1], fallbackOutputConfig[2], fallbackOutputConfig[3]);
-        pixelsPerOutput_ = fallbackOutputConfig;
+PixelOutputConfig loadOrApplyFallback(const PixelOutputConfig &fallbackOutputConfig) {
+    std::optional<PixelOutputConfig> currentOutputConfig = load();
+    if (currentOutputConfig.has_value()) {
+        Serial.printf("Using pixels per output config from flash (%d, %d, %d, %d)\n", currentOutputConfig.value()[0],
+                      currentOutputConfig.value()[1], currentOutputConfig.value()[2], currentOutputConfig.value()[3]);
+        return currentOutputConfig.value();
     }
 
-    return pixelsPerOutput_;
+    Serial.printf("Using fallback pixels per output config (%d, %d, %d, %d)\n", fallbackOutputConfig[0],
+                  fallbackOutputConfig[1], fallbackOutputConfig[2], fallbackOutputConfig[3]);
+    apply(fallbackOutputConfig);
+    return fallbackOutputConfig;
 }
 
-void apply(const PixelOutputConfig &outputConfig) {
-    if (outputConfig == pixelsPerOutput_) {
+std::optional<PixelOutputConfig> load() {
+    PreferencesRaii preferences(PREFERENCE_NAMESPACE);
+    PixelOutputConfig currentOutputConfig;
+
+    if (preferences.isKey(OUTPUT_CONFIG_PREFERENCE_KEY)) {
+        preferences.getBytes(OUTPUT_CONFIG_PREFERENCE_KEY, currentOutputConfig.data(),
+                             currentOutputConfig.size() * sizeof(currentOutputConfig[0]));
+        return currentOutputConfig;
+    }
+
+    return std::nullopt;
+}
+
+void apply(const PixelOutputConfig &newOutputConfig) {
+    std::optional<PixelOutputConfig> currentOutputConfig = load();
+    if (currentOutputConfig.has_value() && currentOutputConfig.value() == newOutputConfig) {
         Serial.printf(
             "Not applying received pixels per output config since it is equal to current one (%d, %d, %d, %d)\n",
-            outputConfig[0], outputConfig[1], outputConfig[2], outputConfig[3]);
+            newOutputConfig[0], newOutputConfig[1], newOutputConfig[2], newOutputConfig[3]);
         return;
     }
 
     {
         PreferencesRaii preferences(PREFERENCE_NAMESPACE);
-        preferences.putBytes(OUTPUT_CONFIG_PREFERENCE_KEY, outputConfig.data(), outputConfig.size() * sizeof(outputConfig[0]));
+        preferences.putBytes(OUTPUT_CONFIG_PREFERENCE_KEY, newOutputConfig.data(),
+                             newOutputConfig.size() * sizeof(newOutputConfig[0]));
     }
+}
 
-    Serial.printf("Restarting ESP32 to apply received pixels per output config (%d, %d, %d, %d)...\n", outputConfig[0],
-                  outputConfig[1], outputConfig[2], outputConfig[3]);
+void applyAndReboot(const PixelOutputConfig &newOutputConfig) {
+    apply(newOutputConfig);
+    Serial.printf("Restarting ESP32 to apply new pixels per output config (%d, %d, %d, %d)...\n", newOutputConfig[0],
+                  newOutputConfig[1], newOutputConfig[2], newOutputConfig[3]);
     ESP.restart();
 }
 }  // namespace OutputConfigurator
