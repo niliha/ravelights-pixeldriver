@@ -3,29 +3,46 @@
 #include "ArtnetHandler.hpp"
 
 ArtnetHandler::ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &frameQueue,
-                             int pixelCount, int baudrate)
+                             int pixelCount, Mode artnetMode, int baudrate)
     : PIXEL_COUNT_(pixelCount), UNIVERSE_COUNT_(std::ceil((pixelCount * 3) / static_cast<float>(512))),
-      artnetQueue_(frameQueue), artnetSerial_(baudrate), artnetFrame_(pixelCount) {
-    // Improves UDP throughput drastically
-    WiFi.setSleep(false);
+      artnetQueue_(frameQueue), artnetFrame_(pixelCount) {
 
-    setArtnetCallback();
-    artnetWifi_.begin();
+    if (artnetMode == Mode::WIFI_ONLY || artnetMode == Mode::WIFI_AND_SERIAL) {
+        artnetWifi_ = std::make_unique<ArtnetWifi>();
+    }
+    if (artnetMode == Mode::SERIAL_ONLY || artnetMode == Mode::WIFI_AND_SERIAL) {
+        artnetSerial_ = std::make_unique<ArtnetSerial>(baudrate);
+    }
+
+    init();
 }
 
 void ArtnetHandler::read() {
     // These functions call onDmxFrame() whenever a ArtDMX packet is received
-    artnetWifi_.read();
-    artnetSerial_.read();
+    if (artnetWifi_ != nullptr) {
+        artnetWifi_->read();
+    }
+
+    if (artnetSerial_ != nullptr) {
+        artnetSerial_->read();
+    }
 }
 
-void ArtnetHandler::setArtnetCallback() {
-    artnetWifi_.setArtDmxFunc([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
-        this->onDmxFrame(universeIndex, length, sequence, data);
-    });
-    artnetSerial_.setArtDmxCallback([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
-        this->onDmxFrame(universeIndex, length, sequence, data);
-    });
+void ArtnetHandler::init() {
+    if (artnetWifi_ != nullptr) {
+        artnetWifi_->setArtDmxFunc([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
+            this->onDmxFrame(universeIndex, length, sequence, data);
+        });
+        WiFi.setSleep(false);  // Improves UDP throughput drastically
+        artnetWifi_->begin();
+    }
+
+    if (artnetSerial_ != nullptr) {
+        artnetSerial_->setArtDmxCallback(
+            [this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
+                this->onDmxFrame(universeIndex, length, sequence, data);
+            });
+    }
 }
 
 void ArtnetHandler::handleConfig(uint16_t length, uint8_t *dataBytes) {

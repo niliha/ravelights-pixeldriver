@@ -17,7 +17,7 @@ bool connectToWifi(std::string ssid, std::string password) {
         Serial.print(".");
     }
 
-    Serial.printf("\nERROR: Connection failed.");
+    Serial.printf("\nERROR: Connection failed.\n");
     return false;
 }
 

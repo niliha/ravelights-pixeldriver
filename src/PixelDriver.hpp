@@ -10,18 +10,23 @@
 
 template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDriver {
  public:
-    PixelDriver(const PixelOutputConfig &pixelsPerOutputFallback, int baudrate = 2000000, int frameQueueCapacity = 3)
+    PixelDriver(const PixelOutputConfig &pixelsPerOutputFallback, ArtnetHandler::Mode artnetMode,
+                int baudrate = 2000000, int frameQueueCapacity = 3)
         : fastLedHandler_(OutputConfigurator::load(pixelsPerOutputFallback)), artnetQueue_(frameQueueCapacity),
-          artnetHandler_(artnetQueue_, fastLedHandler_.getPixelCount(), baudrate), lastFrameMillis_(millis()) {
+          artnetHandler_(artnetQueue_, fastLedHandler_.getPixelCount(), artnetMode, baudrate),
+          lastFrameMillis_(millis()) {
         // The Artnet task on core 1 does not yield to reduce latency.
         // Therefore, the watchdog on core 1 is not reset anymore, since the idle task is not resumed.
         // It is disabled to avoid watchdog timeouts resulting in a reboot.
         disableCore1WDT();
     }
 
-    void testLeds() {
-        // fastLedHandler_.testLeds();
-        fastLedHandler_.testRavelights();
+    void testPixels() {
+        fastLedHandler_.testPixels();
+    }
+
+    void testLights(int pixelsPerLight) {
+        fastLedHandler_.testLights(pixelsPerLight);
     }
 
     void start() {
