@@ -10,6 +10,7 @@
 #include "artnet/BlockingRingBuffer.hpp"
 #include "artnet/PixelOutputConfig.hpp"
 #include "common/PixelFrame.hpp"
+#include "interface/RestApi.hpp"
 
 class ArtnetHandler {
  public:
@@ -32,6 +33,9 @@ class ArtnetHandler {
     std::unique_ptr<ArtnetSerial> artnetSerial_;
     PixelFrame artnetFrame_;
     std::set<int> receivedUniverses_;
+    RestApi restApi_;
+
+
 
     void onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data);
     void setChannel(uint16_t universeIndex, int channelIndex, uint8_t value);

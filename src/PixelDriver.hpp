@@ -60,7 +60,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
                         Serial.printf("%lu ms since last frame\n", millis() - lastFrameMillis_);
                         lastFrameMillis_ = millis();
                     } else if constexpr (std::is_same_v<T, PixelOutputConfig>) {
-                        OutputConfigurator::applyAndReboot(arg);
+                        OutputConfigurator::applyToFlashAndReboot(arg);
                     }
                 },
                 pixelVariant);

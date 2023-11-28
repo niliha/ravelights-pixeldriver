@@ -7,8 +7,8 @@
 namespace OutputConfigurator {
 
 PixelOutputConfig loadOrApplyFallback(const PixelOutputConfig &fallbackOutputConfig);
-std::optional<PixelOutputConfig> load();
-void apply(const PixelOutputConfig &newOutputConfig);
-void applyAndReboot(const PixelOutputConfig &newOutputConfig);
+std::optional<PixelOutputConfig> loadFromFlash();
+bool applyToFlash(const PixelOutputConfig &newOutputConfig);
+void applyToFlashAndReboot(const PixelOutputConfig &newOutputConfig);
 
 }  // namespace OutputConfigurator
