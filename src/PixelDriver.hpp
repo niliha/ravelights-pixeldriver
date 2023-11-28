@@ -7,15 +7,16 @@
 #include "artnet/PixelOutputConfig.hpp"
 #include "config/OutputConfgurator.hpp"
 #include "fastled/FastLedHandler.hpp"
+#include "interface/AbstractNetworkInterface.hpp"
 
 template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDriver {
  public:
-    PixelDriver(const PixelOutputConfig &pixelsPerOutputFallback, ArtnetHandler::Mode artnetMode,
-                int baudrate = 2000000, int frameQueueCapacity = 3)
-        : fastLedHandler_(OutputConfigurator::loadOrApplyFallback(pixelsPerOutputFallback)), artnetQueue_(frameQueueCapacity),
-          artnetHandler_(artnetQueue_, fastLedHandler_.getPixelCount(), artnetMode, baudrate),
+    PixelDriver(const PixelOutputConfig &pixelsPerOutput,
+                std::vector<std::unique_ptr<AbstractNetworkInterface>> networkInterfaces,
+                BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &artnetQueue)
+        : fastLedHandler_(pixelsPerOutput), networkInterfaces_(std::move(networkInterfaces)), artnetQueue_(artnetQueue),
           lastFrameMillis_(millis()) {
-        // The Artnet task on core 1 does not yield to reduce latency.
+        // The network task on core 1 does not yield to reduce latency.
         // Therefore, the watchdog on core 1 is not reset anymore, since the idle task is not resumed.
         // It is disabled to avoid watchdog timeouts resulting in a reboot.
         disableCore1WDT();
@@ -31,8 +32,8 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
 
     void start() {
         // Start artnet task on core 1
-        xTaskCreatePinnedToCore([](void *parameter) { static_cast<PixelDriver *>(parameter)->artnetTask(); },
-                                "artnetTask", 4096, this, 1, NULL, 1);
+        xTaskCreatePinnedToCore([](void *parameter) { static_cast<PixelDriver *>(parameter)->networkTask(); },
+                                "networkTask", 4096, this, 1, NULL, 1);
 
         // Start the fastled task on core 0.
         xTaskCreatePinnedToCore([](void *parameter) { static_cast<PixelDriver *>(parameter)->fastledTask(); },
@@ -41,8 +42,8 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
 
  private:
     FastLedHandler<PINS, RGB_ORDER> fastLedHandler_;
-    BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> artnetQueue_;
-    ArtnetHandler artnetHandler_;
+    std::vector<std::unique_ptr<AbstractNetworkInterface>> networkInterfaces_;
+    BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &artnetQueue_;
     unsigned long lastFrameMillis_;
 
     void fastledTask() {
@@ -67,11 +68,17 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
         }
     }
 
-    void artnetTask() {
-        Serial.printf("artnetTask: started on core %d\n", xPortGetCoreID());
+    void networkTask() {
+        Serial.printf("networkTask started on core %d\n", xPortGetCoreID());
+
+        for (const auto &networkInterface : networkInterfaces_) {
+            networkInterface->start();
+        }
 
         while (true) {
-            artnetHandler_.read();
+            for (const auto &networkInterface : networkInterfaces_) {
+                networkInterface->handleReceived();
+            }
         }
     }
 };

@@ -52,7 +52,7 @@ void RestApi::on_set_config() {
         return;
     }
 
-    if (doc.size() != PIXEL_OUTPUT_CONFIG_SIZE) {
+    if (doc.size() != PixelOutputConfig::OUTPUT_CONFIG_SIZE) {
         Serial.printf("Invalid array size %d\n", doc.size());
         server_.send(400, "text/plain", "Invalid array size. Must be 4");
         return;

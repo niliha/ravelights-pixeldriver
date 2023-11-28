@@ -17,8 +17,8 @@ extern constexpr std::array<int, PIN_COUNT> OUTPUT_PINS = {19, 18, 22, 21};
 
 // For each output pin, specify how many individually addressable pixels are connected.
 // If there are no pixels connected to a specific, set the count to 0.
-PixelOutputConfig pixelsPerOutput = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
-                                     6 * PIXELS_PER_LIGHT};
+PixelOutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
+                                             6 * PIXELS_PER_LIGHT};
 
 const EOrder RGB_ORDER = EOrder::RGB;
 
@@ -36,7 +36,20 @@ extern "C" void app_main() {
     }
     // Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
 
-    PixelDriver<OUTPUT_PINS, RGB_ORDER> pixelDriver(pixelsPerOutput, ArtnetHandler::Mode::WIFI_ONLY);
+    auto outputConfig = OutputConfigurator::loadOrApplyFallback(pixelsPerOutputFallback);
+
+    std::vector<std::unique_ptr<AbstractNetworkInterface>> networkInterfaces;
+
+    auto restApi = std::make_unique<RestApi>(80);
+    networkInterfaces.push_back(std::move(restApi));
+
+    BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> artnetQueue(3);
+    auto artnetHandler =
+        std::make_unique<ArtnetHandler>(artnetQueue, outputConfig.getPixelCount(), ArtnetHandler::Mode::WIFI_ONLY);
+
+    networkInterfaces.push_back(std::move(artnetHandler));
+
+    PixelDriver<OUTPUT_PINS, RGB_ORDER> pixelDriver(outputConfig, std::move(networkInterfaces), artnetQueue);
 
     pixelDriver.testLights(PIXELS_PER_LIGHT);
 

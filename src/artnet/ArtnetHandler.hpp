@@ -11,14 +11,17 @@
 #include "artnet/PixelOutputConfig.hpp"
 #include "common/PixelFrame.hpp"
 #include "interface/RestApi.hpp"
+#include "interface/AbstractNetworkInterface.hpp"
 
-class ArtnetHandler {
+class ArtnetHandler : public AbstractNetworkInterface  {
  public:
     enum class Mode { WIFI_ONLY, SERIAL_ONLY, WIFI_AND_SERIAL };
 
     ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &frameQueue, int pixelCount,
                   Mode artnetMode, int baudrate = 3000000);
-    void read();
+
+    virtual void start() override;
+    virtual void handleReceived() override;
 
  private:
     static const uint16_t CONFIG_UNIVERSE_INDEX = UINT8_MAX;
@@ -28,17 +31,17 @@ class ArtnetHandler {
     const int PIXEL_COUNT_;
     const int UNIVERSE_COUNT_;
 
+    // TODO: Maybe use shared_ptr for artnetQueue instead of passing it by reference?
     BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &artnetQueue_;
     std::unique_ptr<ArtnetWifi> artnetWifi_;
     std::unique_ptr<ArtnetSerial> artnetSerial_;
     PixelFrame artnetFrame_;
     std::set<int> receivedUniverses_;
-    RestApi restApi_;
-
-
 
     void onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data);
     void setChannel(uint16_t universeIndex, int channelIndex, uint8_t value);
     void handleConfig(uint16_t length, uint8_t *data);
     void init();
+
+
 };
