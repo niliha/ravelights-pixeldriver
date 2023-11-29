@@ -2,8 +2,12 @@
 #include <nvs_flash.h>
 
 #include "PixelDriver.hpp"
+#include "config/OutputConfgurator.hpp"
+#include "interface/RestApi.hpp"
+#include "interface/artnet/ArtnetHandler.hpp"
 #include "network/Network.hpp"
 #include "network/WifiCredentials.hpp"
+#include "pixel/FastLedHandler.hpp"
 
 // Specify the maximum number of pins to which lights are to be connected in a specific scenario.
 // Right now the PixelDriver class is fixed to 4.
@@ -17,8 +21,8 @@ extern constexpr std::array<int, PIN_COUNT> OUTPUT_PINS = {19, 18, 22, 21};
 
 // For each output pin, specify how many individually addressable pixels are connected.
 // If there are no pixels connected to a specific, set the count to 0.
-PixelOutputConfig pixelsPerOutput = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
-                                     6 * PIXELS_PER_LIGHT};
+PixelOutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
+                                             6 * PIXELS_PER_LIGHT};
 
 const EOrder RGB_ORDER = EOrder::RGB;
 
@@ -36,9 +40,21 @@ extern "C" void app_main() {
     }
     // Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
 
-    PixelDriver<OUTPUT_PINS, RGB_ORDER> pixelDriver(pixelsPerOutput, ArtnetHandler::Mode::WIFI_ONLY);
+    auto restApi = std::make_shared<RestApi>(80);
 
-    pixelDriver.testLights(PIXELS_PER_LIGHT);
+    auto outputConfig = OutputConfigurator::loadOrApplyFallback(pixelsPerOutputFallback);
+    BlockingRingBuffer<PixelFrame> artnetQueue(3);
+    auto artnetHandler =
+        std::make_shared<ArtnetHandler>(artnetQueue, outputConfig.getPixelCount(), ArtnetHandler::Mode::WIFI_ONLY);
+
+    std::vector<std::shared_ptr<AbstractInterfaceHandler>> networkInterfaces;
+    networkInterfaces.push_back(restApi);
+    networkInterfaces.push_back(artnetHandler);
+
+    FastLedHandler<OUTPUT_PINS, RGB_ORDER> fastLedHandler(outputConfig);
+    fastLedHandler.testLights(PIXELS_PER_LIGHT);
+
+    PixelDriver pixelDriver(networkInterfaces, artnetQueue, fastLedHandler);
 
     pixelDriver.start();
 
