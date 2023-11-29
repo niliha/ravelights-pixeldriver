@@ -3,9 +3,9 @@
 #include <Arduino.h>
 #include <WebServer.h>
 
-#include "AbstractNetworkInterface.hpp"
+#include "AbstractInterfaceHandler.hpp"
 
-class RestApi : public AbstractNetworkInterface {
+class RestApi : public AbstractInterfaceHandler {
     public:
     RestApi(int port = 80);
     virtual void start() override;

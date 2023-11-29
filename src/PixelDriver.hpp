@@ -1,20 +1,18 @@
 #pragma once
 
-#include <Preferences.h>
-#include <variant>
+#include <memory>
 
-#include "artnet/ArtnetHandler.hpp"
-#include "artnet/PixelOutputConfig.hpp"
-#include "config/OutputConfgurator.hpp"
+#include "config/PixelOutputConfig.hpp"
 #include "fastled/FastLedHandler.hpp"
-#include "interface/AbstractNetworkInterface.hpp"
+#include "interface/AbstractInterfaceHandler.hpp"
+#include "interface/artnet/BlockingRingBuffer.hpp"
 
 template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDriver {
  public:
     PixelDriver(const PixelOutputConfig &pixelsPerOutput,
-                std::vector<std::unique_ptr<AbstractNetworkInterface>> networkInterfaces,
-                BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &artnetQueue)
-        : fastLedHandler_(pixelsPerOutput), networkInterfaces_(std::move(networkInterfaces)), artnetQueue_(artnetQueue),
+                std::vector<std::shared_ptr<AbstractInterfaceHandler>> &networkInterfaces,
+                BlockingRingBuffer<PixelFrame> &artnetQueue)
+        : fastLedHandler_(pixelsPerOutput), networkInterfaces_(networkInterfaces), artnetQueue_(artnetQueue),
           lastFrameMillis_(millis()) {
         // The network task on core 1 does not yield to reduce latency.
         // Therefore, the watchdog on core 1 is not reset anymore, since the idle task is not resumed.
@@ -42,29 +40,21 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class PixelDri
 
  private:
     FastLedHandler<PINS, RGB_ORDER> fastLedHandler_;
-    std::vector<std::unique_ptr<AbstractNetworkInterface>> networkInterfaces_;
-    BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &artnetQueue_;
+    std::vector<std::shared_ptr<AbstractInterfaceHandler>> &networkInterfaces_;
+    BlockingRingBuffer<PixelFrame> &artnetQueue_;
     unsigned long lastFrameMillis_;
 
     void fastledTask() {
         Serial.printf("fastledTask: started on core %d\n", xPortGetCoreID());
 
         while (true) {
-            std::variant<PixelFrame, PixelOutputConfig> pixelVariant;
-            artnetQueue_.pop(pixelVariant);
+            PixelFrame frame;
+            artnetQueue_.pop(frame);
 
-            std::visit(
-                [this](auto &&arg) {
-                    using T = std::decay_t<decltype(arg)>;
-                    if constexpr (std::is_same_v<T, PixelFrame>) {
-                        fastLedHandler_.write(arg);
-                        Serial.printf("%lu ms since last frame\n", millis() - lastFrameMillis_);
-                        lastFrameMillis_ = millis();
-                    } else if constexpr (std::is_same_v<T, PixelOutputConfig>) {
-                        OutputConfigurator::applyToFlashAndReboot(arg);
-                    }
-                },
-                pixelVariant);
+            fastLedHandler_.write(frame);
+
+            Serial.printf("%lu ms since last frame\n", millis() - lastFrameMillis_);
+            lastFrameMillis_ = millis();
         }
     }
 

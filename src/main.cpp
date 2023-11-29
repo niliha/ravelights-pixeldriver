@@ -4,6 +4,9 @@
 #include "PixelDriver.hpp"
 #include "network/Network.hpp"
 #include "network/WifiCredentials.hpp"
+#include "interface/artnet/ArtnetHandler.hpp"
+#include "interface/RestApi.hpp"
+#include "config/OutputConfgurator.hpp"
 
 // Specify the maximum number of pins to which lights are to be connected in a specific scenario.
 // Right now the PixelDriver class is fixed to 4.
@@ -36,20 +39,18 @@ extern "C" void app_main() {
     }
     // Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
 
+
+    auto restApi = std::make_shared<RestApi>(80);
+
     auto outputConfig = OutputConfigurator::loadOrApplyFallback(pixelsPerOutputFallback);
+    BlockingRingBuffer<PixelFrame> artnetQueue(3);
+    auto artnetHandler = std::make_shared<ArtnetHandler>(artnetQueue, outputConfig.getPixelCount(), ArtnetHandler::Mode::WIFI_ONLY);
 
-    std::vector<std::unique_ptr<AbstractNetworkInterface>> networkInterfaces;
+    std::vector<std::shared_ptr<AbstractInterfaceHandler>> networkInterfaces;
+    networkInterfaces.push_back(restApi);
+    networkInterfaces.push_back(artnetHandler);
 
-    auto restApi = std::make_unique<RestApi>(80);
-    networkInterfaces.push_back(std::move(restApi));
-
-    BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> artnetQueue(3);
-    auto artnetHandler =
-        std::make_unique<ArtnetHandler>(artnetQueue, outputConfig.getPixelCount(), ArtnetHandler::Mode::WIFI_ONLY);
-
-    networkInterfaces.push_back(std::move(artnetHandler));
-
-    PixelDriver<OUTPUT_PINS, RGB_ORDER> pixelDriver(outputConfig, std::move(networkInterfaces), artnetQueue);
+    PixelDriver<OUTPUT_PINS, RGB_ORDER> pixelDriver(outputConfig, networkInterfaces, artnetQueue);
 
     pixelDriver.testLights(PIXELS_PER_LIGHT);
 

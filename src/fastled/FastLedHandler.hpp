@@ -2,7 +2,7 @@
 
 #include <FastLED.h>
 
-#include "common/PixelFrame.hpp"
+#include "PixelFrame.hpp"
 
 #include <numeric>
 #include <vector>

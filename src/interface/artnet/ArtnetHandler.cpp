@@ -2,8 +2,7 @@
 
 #include "ArtnetHandler.hpp"
 
-ArtnetHandler::ArtnetHandler(BlockingRingBuffer<std::variant<PixelFrame, PixelOutputConfig>> &frameQueue,
-                             int pixelCount, Mode artnetMode, int baudrate)
+ArtnetHandler::ArtnetHandler(BlockingRingBuffer<PixelFrame> &frameQueue, int pixelCount, Mode artnetMode, int baudrate)
     : PIXEL_COUNT_(pixelCount), UNIVERSE_COUNT_(std::ceil((pixelCount * 3) / static_cast<float>(512))),
       artnetQueue_(frameQueue), artnetFrame_(pixelCount) {
 
@@ -50,25 +49,6 @@ void ArtnetHandler::init() {
     }
 }
 
-void ArtnetHandler::handleConfig(uint16_t length, uint8_t *dataBytes) {
-    if (length != CONFIG_UNIVERSE_LENGTH) {
-        Serial.printf("ERROR: Expected %d config channels but got %d\n", CONFIG_UNIVERSE_LENGTH, length);
-        return;
-    }
-
-    uint32_t *dataInts = reinterpret_cast<uint32_t *>(dataBytes);
-    PixelOutputConfig pixelsPerOutput = {dataInts[0], dataInts[1], dataInts[2], dataInts[3]};
-
-    uint32_t checksum = std::accumulate(pixelsPerOutput.begin(), pixelsPerOutput.end(), 0);
-    if (checksum != dataInts[4]) {
-        Serial.printf("ERROR: Calculated config checksum %d does not match with %d\n", checksum, dataBytes[4]);
-        return;
-    }
-
-    artnetQueue_.push(std::move(pixelsPerOutput));
-    return;
-}
-
 void ArtnetHandler::setChannel(uint16_t universeIndex, int channelIndex, uint8_t value) {
     // integer division will round off to nearest neighbor;
     unsigned pixelIndex = (universeIndex * 512 + channelIndex) / 3;
@@ -81,11 +61,6 @@ void ArtnetHandler::setChannel(uint16_t universeIndex, int channelIndex, uint8_t
 }
 
 void ArtnetHandler::onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
-    if (universeIndex == CONFIG_UNIVERSE_INDEX) {
-        handleConfig(length, data);
-        return;
-    }
-
     if (universeIndex >= UNIVERSE_COUNT_) {
         return;
     }
@@ -95,7 +70,6 @@ void ArtnetHandler::onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t 
         return;
     }
 
-    // Store which universe has got in
     receivedUniverses_.insert(universeIndex);
 
     // Read universe and put into the right part of the display buffer

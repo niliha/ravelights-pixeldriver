@@ -2,7 +2,7 @@
 
 #include <optional>
 
-#include "artnet/PixelOutputConfig.hpp"
+#include "PixelOutputConfig.hpp"
 
 namespace OutputConfigurator {
 

@@ -1,8 +1,8 @@
 #pragma once
 
-class AbstractNetworkInterface {
+class AbstractInterfaceHandler {
  public:
-    virtual ~AbstractNetworkInterface() = default;
+    virtual ~AbstractInterfaceHandler() = default;
     virtual void start() = 0;
     virtual void handleReceived() = 0;
 };
