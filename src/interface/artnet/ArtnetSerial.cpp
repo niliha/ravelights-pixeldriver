@@ -1,5 +1,7 @@
 #include "ArtnetSerial.hpp"
 
+static const char *TAG = "ArtnetSerial";
+
 ArtnetSerial::ArtnetSerial(int baudRate) : onArtDmxFrame_(nullptr) {
     // Flush UART RX HW buffer to SW buffer on every received byte
     Serial2.setRxFIFOFull(1);
@@ -43,7 +45,7 @@ void ArtnetSerial::read() {
         if (currentBufferIndex_ == strlen(ARTNET_HEADER)) {
             if (!isSynced_) {
                 isSynced_ = true;
-                Serial.printf("(Re)-synchronized with byte stream\n");
+                ESP_LOGD(TAG, "(Re)-synchronized with byte stream");
             }
             currentState_ = State::DMX_DATA_LENGTH_PARSING;
         }
@@ -57,7 +59,7 @@ void ArtnetSerial::read() {
         if (currentBufferIndex_ == ARTNET_OPCODE_HI_OFFSET) {
             uint16_t opcode = buffer_[ARTNET_OPCODE_HI_OFFSET] << 8 | buffer_[ARTNET_OPCODE_LO_OFFSET];
             if (opcode != ART_DMX_OPCODE) {
-                Serial.printf("WARN: Received unsupported Artnet opcode %x\n", opcode);
+                ESP_LOGW(TAG, "Received unsupported Artnet opcode %x", opcode);
                 startOver(false);
             } else {
                 currentState_ = State::DMX_DATA_LENGTH_PARSING;
@@ -72,7 +74,7 @@ void ArtnetSerial::read() {
         if (currentBufferIndex_ == ART_DMX_LENGTH_LO_OFFSET) {
             dmxDataLength_ = buffer_[ART_DMX_LENGTH_HI_OFFSET] << 8 | buffer_[ART_DMX_LENGTH_LO_OFFSET];
             if (dmxDataLength_ < 2 || dmxDataLength_ > 512) {
-                Serial.printf("WARN: Received invalid dmxDataLength %d. Skipping this frame\n", dmxDataLength_);
+                ESP_LOGW(TAG, "Received invalid dmxDataLength %d. Skipping this frame", dmxDataLength_);
                 startOver(false);
             } else {
                 maximumBufferIndex_ = currentBufferIndex_ + dmxDataLength_;

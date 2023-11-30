@@ -1,34 +1,38 @@
 #include "Arduino.h"
 #include "WiFi.h"
 
+static const char *TAG = "Network";
+
 namespace Network {
 bool connectToWifi(std::string ssid, std::string password) {
-    Serial.printf("Connecting to WiFi with SSID %s...\n", ssid.c_str());
+    ESP_LOGI(TAG, "Connecting to WiFi with SSID %s...", ssid.c_str());
     WiFi.begin(ssid.c_str(), password.c_str());
 
     // Wait 10 seconds for connection to be established
-    for (unsigned i = 0; i <= 20; i++) {
+    for (unsigned i = 0; i < 5; i++) {
         if (WiFi.status() == WL_CONNECTED) {
-            Serial.printf("\nSUCCESS! IP address: ");
-            Serial.println(WiFi.localIP());
+            ESP_LOGI(TAG, "SUCCESS! IP address: %s", WiFi.localIP().toString().c_str());
             return true;
         }
-        delay(500);
-        Serial.print(".");
+        ESP_LOGI(TAG, "Still connecting to WiFi with SSID %s...", ssid.c_str());
+        delay(2000);
     }
 
-    Serial.printf("\nERROR: Connection failed.\n");
+    ESP_LOGE(TAG, "Connection failed");
     return false;
 }
 
-void initWifiAccessPoint(std::string ssid, std::string password) {
-    Serial.printf("Setting up access point with SSID %s...\n", ssid.c_str());
+bool initWifiAccessPoint(std::string ssid, std::string password) {
+    ESP_LOGI(TAG, "Setting up access point with SSID %s...", ssid.c_str());
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(ssid.c_str(), password.c_str());
+    if (WiFi.softAP(ssid.c_str(), password.c_str())) {
+        // Default IP is 192.168.4.1
+        ESP_LOGI(TAG, "SUCCESS! Access point IP address: %s", WiFi.softAPIP().toString().c_str());
+        return true;
+    }
 
-    // Default IP is 192.168.4.1
-    Serial.print("AP IP address: ");
-    Serial.println(WiFi.softAPIP());
+    ESP_LOGE(TAG, "Setting up access point failed");
+    return false;
 }
 
 }  // namespace Network

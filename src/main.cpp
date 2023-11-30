@@ -9,6 +9,8 @@
 #include "network/WifiCredentials.hpp"
 #include "pixel/FastLedHandler.hpp"
 
+
+static const char *TAG = "main";
 // Specify the maximum number of pins to which lights are to be connected in a specific scenario.
 // Right now the PixelDriver class is fixed to 4.
 const int PIN_COUNT = 4;
@@ -36,9 +38,16 @@ extern "C" void app_main() {
     // nvs_flash_init(); // initialize the NVS partition.
 
     if (!Network::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
+        ESP_LOGE(TAG, "Rebooting because connecting to wifi with SSID %s failed", WifiCredentials::ssid.c_str());
         ESP.restart();
     }
-    // Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password);
+    
+    /*
+    if(!Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password)) {
+        ESP_LOGE(TAG, "Rebooting because setting up access point with SSID %s failed",WifiCredentials::ssid.c_str());
+        ESP.restart();
+    }
+    */
 
     auto restApi = std::make_shared<RestApi>(80);
 
@@ -56,6 +65,7 @@ extern "C" void app_main() {
 
     PixelDriver pixelDriver(networkInterfaces, artnetQueue, fastLedHandler);
 
+    ESP_LOGD(TAG, "Debug test...");
     pixelDriver.start();
 
     while (true) {

@@ -2,6 +2,8 @@
 
 #include "ArtnetHandler.hpp"
 
+static const char *TAG = "ArtnetHandler";
+
 ArtnetHandler::ArtnetHandler(BlockingRingBuffer<PixelFrame> &frameQueue, int pixelCount, Mode artnetMode, int baudrate)
     : PIXEL_COUNT_(pixelCount), UNIVERSE_COUNT_(std::ceil((pixelCount * 3) / static_cast<float>(512))),
       artnetQueue_(frameQueue), artnetFrame_(pixelCount) {
@@ -66,7 +68,7 @@ void ArtnetHandler::onDmxFrame(uint16_t universeIndex, uint16_t length, uint8_t 
     }
 
     if (receivedUniverses_.find(universeIndex) != receivedUniverses_.end()) {
-        Serial.printf("WARN: Received duplicate universe %d\n", universeIndex);
+        ESP_LOGW(TAG, "Received duplicate universe %d\n", universeIndex);
         return;
     }
 
