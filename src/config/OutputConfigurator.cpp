@@ -1,6 +1,8 @@
 #include "OutputConfgurator.hpp"
 #include "PreferencesRaii.hpp"
 
+static const char *TAG = "OutputConfigurator";
+
 namespace OutputConfigurator {
 
 static constexpr const char *PREFERENCE_NAMESPACE = "ravelights";
@@ -10,9 +12,9 @@ PixelOutputConfig loadOrApplyFallback(const PixelOutputConfig &fallbackOutputCon
     std::optional<PixelOutputConfig> outputConfigFromFlash = loadFromFlash();
     const auto &outputConfig = outputConfigFromFlash.value_or(fallbackOutputConfig);
 
-    Serial.printf("Using pixels per output config from %s (%d, %d, %d, %d)\n",
-                  outputConfigFromFlash ? "flash" : "fallback", outputConfig[0], outputConfig[1], outputConfig[2],
-                  outputConfig[3]);
+    ESP_LOGI(TAG, "Using pixels per output config from %s (%d, %d, %d, %d)",
+             outputConfigFromFlash ? "flash" : "fallback", outputConfig[0], outputConfig[1], outputConfig[2],
+             outputConfig[3]);
 
     if (!outputConfigFromFlash) {
         applyToFlash(fallbackOutputConfig);
@@ -50,13 +52,13 @@ bool applyToFlash(const PixelOutputConfig &newOutputConfig) {
 void applyToFlashAndReboot(const PixelOutputConfig &newOutputConfig) {
     bool wasApplied = applyToFlash(newOutputConfig);
     if (wasApplied) {
-        Serial.printf("Restarting ESP32 to apply new pixels per output config (%d, %d, %d, %d)...\n",
-                      newOutputConfig[0], newOutputConfig[1], newOutputConfig[2], newOutputConfig[3]);
+        ESP_LOGI(TAG, "Restarting ESP32 to apply new pixels per output config (%d, %d, %d, %d)...", newOutputConfig[0],
+                 newOutputConfig[1], newOutputConfig[2], newOutputConfig[3]);
         ESP.restart();
     } else {
-        Serial.printf(
-            "Not applying received pixels per output config since it is equal to current one (%d, %d, %d, %d)\n",
-            newOutputConfig[0], newOutputConfig[1], newOutputConfig[2], newOutputConfig[3]);
+        ESP_LOGI(TAG,
+                 "Not applying received pixels per output config since it is equal to current one (%d, %d, %d, %d)",
+                 newOutputConfig[0], newOutputConfig[1], newOutputConfig[2], newOutputConfig[3]);
     }
 }
 }  // namespace OutputConfigurator

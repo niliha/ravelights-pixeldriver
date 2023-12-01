@@ -45,12 +45,12 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
     }
 
     void testPixels() {
-        Serial.println("Testing LEDs...");
+        ESP_LOGI(TAG, "Testing Pixels...");
         for (const auto color : std::vector<CRGB>{CRGB::Red, CRGB::Green, CRGB::Blue}) {
             auto millisBefore = millis();
             FastLED.showColor(color);
             auto passedMillis = millis() - millisBefore;
-            Serial.printf("show() took %lu ms\n", passedMillis);
+            ESP_LOGD(TAG, "show() took %lu ms", passedMillis);
             delay(500);
 
             FastLED.clear(true);
@@ -59,6 +59,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
     }
 
     void testLights(int pixelsPerLight) {
+        ESP_LOGI(TAG, "Testing Lights...");
         assert(PIXEL_COUNT_ % pixelsPerLight == 0);
 
         const std::vector<CRGB> colors{CRGB::White, CRGB::Red, CRGB::Green, CRGB::Blue};
@@ -76,7 +77,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
             auto millisBefore = millis();
             FastLED.show();
             auto passedMillis = millis() - millisBefore;
-            Serial.printf("show() took %lu ms\n", passedMillis);
+            ESP_LOGD(TAG, "show() took %lu ms", passedMillis);
             delay(500);
 
             FastLED.clear(true);
@@ -85,6 +86,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
     }
 
  private:
+    static constexpr const char *TAG = "FastLedHandler";
     // Total number of pixels across all lights.
     const int PIXEL_COUNT_;
 

@@ -4,6 +4,8 @@
 #include "RestApi.hpp"
 #include "config/OutputConfgurator.hpp"
 
+static const char* TAG = "RestApi";
+
 RestApi::RestApi(int port) : server_(port), port_(port) {
     server_.on("/api/config", HTTP_GET, [this]() { this->on_get_config(); });
     server_.on("/api/config", HTTP_POST, [this]() { this->on_set_config(); });
@@ -11,7 +13,7 @@ RestApi::RestApi(int port) : server_(port), port_(port) {
 
 void RestApi::start() {
     server_.begin();
-    Serial.printf("REST API started on %s:%d\n", WiFi.localIP().toString().c_str(), port_);
+    ESP_LOGI(TAG,"REST API started on %s:%d", WiFi.localIP().toString().c_str(), port_);
 }
 
 void RestApi::handleReceived() {
@@ -41,20 +43,20 @@ void RestApi::on_set_config() {
     StaticJsonDocument<JSON_ARRAY_SIZE(4)> doc;
     auto error = deserializeJson(doc, configString);
     if (error) {
-        Serial.printf("Failed to parse JSON: %s\n", error.c_str());
+        ESP_LOGE(TAG,"Failed to parse JSON: %s", error.c_str());
         server_.send(400, "text/plain", "Failed to parse JSON");
         return;
     }
 
     if (!doc.is<JsonArray>()) {
-        Serial.println("Invalid JSON format. Expected an array");
+        ESP_LOGE(TAG,"Invalid JSON format. Expected an array");
         server_.send(400, "text/plain", "Invalid JSON format. Expected an array");
         return;
     }
 
     if (doc.size() != PixelOutputConfig::OUTPUT_CONFIG_SIZE) {
-        Serial.printf("Invalid array size %d\n", doc.size());
-        server_.send(400, "text/plain", "Invalid array size. Must be 4");
+        ESP_LOGE(TAG,"Invalid array size %d", doc.size());
+        server_.send(400, "text/plain", "Invalid array size");
         return;
     }
 
