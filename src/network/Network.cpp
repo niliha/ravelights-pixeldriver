@@ -1,4 +1,5 @@
-#include "Arduino.h"
+#include "Network.hpp"
+
 #include "WiFi.h"
 
 static const char *TAG = "Network";

@@ -1,6 +1,6 @@
-#include <Arduino.h>
-
 #include "PixelDriver.hpp"
+
+#include <esp32-hal.h>
 
 static const char *TAG = "PixelDriver";
 

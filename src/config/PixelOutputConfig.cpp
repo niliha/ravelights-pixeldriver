@@ -1,6 +1,7 @@
+#include "PixelOutputConfig.hpp"
+
 #include <numeric>
 
-#include "PixelOutputConfig.hpp"
 
 PixelOutputConfig::PixelOutputConfig(std::initializer_list<uint32_t> values) : std::array<uint32_t, OUTPUT_COUNT>() {
     assert(values.size() == OUTPUT_COUNT);

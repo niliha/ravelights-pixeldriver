@@ -1,6 +1,6 @@
-#include <numeric>
-
 #include "ArtnetHandler.hpp"
+
+#include <numeric>
 
 static const char *TAG = "ArtnetHandler";
 

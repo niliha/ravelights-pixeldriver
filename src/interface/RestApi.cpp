@@ -1,7 +1,8 @@
+#include "RestApi.hpp"
+
 #include <ArduinoJson.h>
 #include <WiFi.h>
 
-#include "RestApi.hpp"
 #include "config/OutputConfgurator.hpp"
 
 static const char* TAG = "RestApi";

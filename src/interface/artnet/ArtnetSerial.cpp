@@ -1,5 +1,7 @@
 #include "ArtnetSerial.hpp"
 
+#include <HardwareSerial.h>
+
 static const char *TAG = "ArtnetSerial";
 
 ArtnetSerial::ArtnetSerial(int baudRate) : onArtDmxFrame_(nullptr) {

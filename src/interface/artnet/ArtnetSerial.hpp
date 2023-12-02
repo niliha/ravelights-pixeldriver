@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+#include <functional>
 
 typedef std::function<void(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *data)> ArtDmxCallback;
 
