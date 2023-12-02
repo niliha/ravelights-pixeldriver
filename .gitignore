@@ -5,7 +5,7 @@
 .ccls
 .ccls-cache/
 
-#VSCodium
+# vs code
 .vscode/*
 # !.vscode/settings.json
 # !.vscode/tasks.json
@@ -15,3 +15,6 @@
 
 # Local History for Visual Studio Code
 .history/
+
+# esp-idf
+sdkconfig.esp32dev.old
