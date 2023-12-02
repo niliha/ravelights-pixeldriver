@@ -20,7 +20,7 @@ class PixelOutputConfig : std::array<uint32_t, OUTPUT_COUNT> {
 
     bool operator==(const PixelOutputConfig &other) const;
 
-    int getPixelCount();
+    int getPixelCount() const;
 
     static const int OUTPUT_CONFIG_SIZE = OUTPUT_COUNT;
 };
