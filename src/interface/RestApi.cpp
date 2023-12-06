@@ -5,7 +5,7 @@
 
 #include "config/OutputConfgurator.hpp"
 
-static const char* TAG = "RestApi";
+static const char *TAG = "RestApi";
 
 RestApi::RestApi(int port) : server_(port), port_(port) {
     server_.on("/api/config", HTTP_GET, [this]() { this->on_get_config(); });
@@ -14,7 +14,7 @@ RestApi::RestApi(int port) : server_(port), port_(port) {
 
 void RestApi::start() {
     server_.begin();
-    ESP_LOGI(TAG,"REST API started on %s:%d", WiFi.localIP().toString().c_str(), port_);
+    ESP_LOGI(TAG, "REST API started on %s:%d", WiFi.localIP().toString().c_str(), port_);
 }
 
 void RestApi::handleReceived() {
@@ -26,7 +26,7 @@ void RestApi::on_get_config() {
 
     if (configOptional) {
         StaticJsonDocument<JSON_ARRAY_SIZE(4)> doc;
-        for (const auto& output : *configOptional) {
+        for (const auto &output : *configOptional) {
             doc.add(output);
         }
         std::string configString;
@@ -44,27 +44,28 @@ void RestApi::on_set_config() {
     StaticJsonDocument<JSON_ARRAY_SIZE(4)> doc;
     auto error = deserializeJson(doc, configString);
     if (error) {
-        ESP_LOGE(TAG,"Failed to parse JSON: %s", error.c_str());
+        ESP_LOGE(TAG, "Failed to parse JSON: %s", error.c_str());
         server_.send(400, "text/plain", "Failed to parse JSON");
         return;
     }
 
     if (!doc.is<JsonArray>()) {
-        ESP_LOGE(TAG,"Invalid JSON format. Expected an array");
+        ESP_LOGE(TAG, "Invalid JSON format. Expected an array");
         server_.send(400, "text/plain", "Invalid JSON format. Expected an array");
         return;
     }
 
     if (doc.size() != PixelOutputConfig::OUTPUT_CONFIG_SIZE) {
-        ESP_LOGE(TAG,"Invalid array size %d", doc.size());
+        ESP_LOGE(TAG, "Invalid array size %d", doc.size());
         server_.send(400, "text/plain", "Invalid array size");
         return;
     }
 
     PixelOutputConfig outputConfig;
-    for (int i = 0; i < outputConfig.size(); ++i ) {
-        outputConfig[i] =doc[i].as<uint32_t>();
+    for (int i = 0; i < outputConfig.size(); ++i) {
+        outputConfig[i] = doc[i].as<uint32_t>();
     }
 
+    server_.send(200, "text/plain", "Valid output configuration received. Applying...");
     OutputConfigurator::applyToFlashAndReboot(outputConfig);
 }
