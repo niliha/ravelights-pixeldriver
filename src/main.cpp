@@ -7,6 +7,7 @@
 #include "network/Network.hpp"
 #include "network/WifiCredentials.hpp"
 #include "pixel/FastLedHandler.hpp"
+#include "pixel/LaserCageHandler.hpp"
 
 static const char *TAG = "main";
 
@@ -20,13 +21,17 @@ extern constexpr std::array<int, PIN_COUNT> OUTPUT_PINS = {19, 18, 22, 21};
 // Specify the amount of individually addressable pixels per "light"
 const int PIXELS_PER_LIGHT = 144;
 
-
 // For each output pin, specify how many individually addressable pixels are connected.
 // If there are no pixels connected to a specific pin, set the count to 0.
 PixelOutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
                                              6 * PIXELS_PER_LIGHT};
 
 const EOrder RGB_ORDER = EOrder::RGB;
+
+// Laser Cage
+// const int DATA_PIN = 7;
+// const int SCLK_PIN = 6;
+// const int CS_PIN = 5;
 
 extern "C" void app_main() {
     initArduino();
@@ -51,6 +56,7 @@ extern "C" void app_main() {
     auto restApi = std::make_shared<RestApi>(80);
 
     auto outputConfig = OutputConfigurator::loadOrApplyFallback(pixelsPerOutputFallback);
+
     BlockingRingBuffer<PixelFrame> artnetQueue(3);
     auto artnetHandler =
         std::make_shared<ArtnetHandler>(artnetQueue, outputConfig.getPixelCount(), ArtnetHandler::Mode::WIFI_ONLY);
@@ -59,10 +65,16 @@ extern "C" void app_main() {
     networkInterfaces.push_back(restApi);
     networkInterfaces.push_back(artnetHandler);
 
-    FastLedHandler<OUTPUT_PINS, RGB_ORDER> fastLedHandler(outputConfig);
-    fastLedHandler.testLights(PIXELS_PER_LIGHT);
+    // Laser Cage
+    // LedControl ledControl(DATA_PIN, SCLK_PIN, CS_PIN);
+    // LaserCageHandler pixelHandler(ledControl, outputConfig.getPixelCount());
+    // pixelHandler.testLasers();
 
-    PixelDriver pixelDriver(networkInterfaces, artnetQueue, fastLedHandler);
+    // Ravelights
+    FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig);
+    pixelHandler.testLights(PIXELS_PER_LIGHT);
+
+    PixelDriver pixelDriver(networkInterfaces, artnetQueue, pixelHandler);
 
     pixelDriver.start();
 
