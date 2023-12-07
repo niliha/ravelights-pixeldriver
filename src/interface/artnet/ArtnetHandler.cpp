@@ -2,6 +2,8 @@
 
 #include <numeric>
 
+#include <ESPmDNS.h>
+
 static const char *TAG = "ArtnetHandler";
 
 ArtnetHandler::ArtnetHandler(BlockingRingBuffer<PixelFrame> &frameQueue, int pixelCount, Mode artnetMode, int baudrate)
@@ -15,12 +17,13 @@ ArtnetHandler::ArtnetHandler(BlockingRingBuffer<PixelFrame> &frameQueue, int pix
         artnetSerial_ = std::make_unique<ArtnetSerial>(baudrate);
     }
 
-    init();
+    initCallbacks();
 }
 
 void ArtnetHandler::start() {
     if (artnetWifi_ != nullptr) {
         artnetWifi_->begin();
+        MDNS.addService("artnet", "udp", ART_NET_PORT);
     }
 }
 
@@ -35,7 +38,7 @@ void ArtnetHandler::handleReceived() {
     }
 }
 
-void ArtnetHandler::init() {
+void ArtnetHandler::initCallbacks() {
     if (artnetWifi_ != nullptr) {
         artnetWifi_->setArtDmxFunc([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
             this->onDmxFrame(universeIndex, length, sequence, data);

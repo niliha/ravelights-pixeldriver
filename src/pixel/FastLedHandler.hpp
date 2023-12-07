@@ -10,7 +10,7 @@
 
 template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedHandler : public AbstractPixelHandler {
  public:
-    FastLedHandler(const PixelOutputConfig &pixelsPerOutput)
+    FastLedHandler(const OutputConfig &pixelsPerOutput)
         : PIXEL_COUNT_(std::accumulate(pixelsPerOutput.begin(), pixelsPerOutput.end(), 0)),
           fastLedPixels_(PIXEL_COUNT_) {
         // We can't use a loop here since addLeds() template parameters must be known at

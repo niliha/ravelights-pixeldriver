@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "config/PixelOutputConfig.hpp"
+#include "config/OutputConfig.hpp"
 #include "interface/AbstractInterfaceHandler.hpp"
 #include "interface/artnet/BlockingRingBuffer.hpp"
 #include "pixel/AbstractPixelHandler.hpp"

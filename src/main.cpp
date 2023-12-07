@@ -1,7 +1,8 @@
 #include <nvs_flash.h>
+#include <ESPmDNS.h>
 
 #include "PixelDriver.hpp"
-#include "config/OutputConfgurator.hpp"
+#include "config/PersistentStorage.hpp"
 #include "interface/RestApi.hpp"
 #include "interface/artnet/ArtnetHandler.hpp"
 #include "network/Network.hpp"
@@ -23,15 +24,18 @@ const int PIXELS_PER_LIGHT = 144;
 
 // For each output pin, specify how many individually addressable pixels are connected.
 // If there are no pixels connected to a specific pin, set the count to 0.
-PixelOutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
+OutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
                                              6 * PIXELS_PER_LIGHT};
 
 const EOrder RGB_ORDER = EOrder::RGB;
+
+const char *INSTANCE_ID = "ravelights";
 
 // Laser Cage
 // const int DATA_PIN = 7;
 // const int SCLK_PIN = 6;
 // const int CS_PIN = 5;
+// const char *INSTANCE_ID = "lasercage";
 
 extern "C" void app_main() {
     initArduino();
@@ -53,9 +57,11 @@ extern "C" void app_main() {
     }
     */
 
+    MDNS.begin(INSTANCE_ID);
+
     auto restApi = std::make_shared<RestApi>(80);
 
-    auto outputConfig = OutputConfigurator::loadOrApplyFallback(pixelsPerOutputFallback);
+    auto outputConfig = PersistentStorage::loadOrStoreFallbackOutputConfig(pixelsPerOutputFallback);
 
     BlockingRingBuffer<PixelFrame> artnetQueue(3);
     auto artnetHandler =

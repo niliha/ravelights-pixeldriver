@@ -2,15 +2,18 @@
 
 #include "Preferences.h"
 
-class PreferencesRaii {
+class PreferencesRaii : private Preferences {
  public:
     PreferencesRaii(const char *namespaceName);
     ~PreferencesRaii();
 
-    size_t putBytes(const char *key, const void *value, size_t len);
-    size_t getBytes(const char *key, void *buf, size_t maxLen);
-    bool isKey(const char *key);
+    using Preferences::isKey;
 
- private:
-    Preferences preferences_;
+    // Required for output config
+    using Preferences::getBytes;
+    using Preferences::putBytes;
+
+    // Required for instance id
+    using Preferences::getString;
+    using Preferences::putString;
 };
