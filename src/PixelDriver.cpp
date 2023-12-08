@@ -6,7 +6,7 @@ static const char *TAG = "PixelDriver";
 
 PixelDriver::PixelDriver(std::vector<std::shared_ptr<AbstractInterfaceHandler>> &interfaces,
                          BlockingRingBuffer<PixelFrame> &artnetQueue, AbstractPixelHandler &pixelHandler)
-    : pixelHandler_(pixelHandler), interfaces_(interfaces), artnetQueue_(artnetQueue), lastFrameMillis_(millis()) {
+    : pixelHandler_(pixelHandler), interfaces_(interfaces), artnetQueue_(artnetQueue) {
     // The network task on core 1 does not yield to reduce latency.
     // Therefore, the watchdog on core 1 is not reset anymore, since the idle task is not resumed.
     // It is disabled to avoid watchdog timeouts resulting in a reboot.
@@ -26,14 +26,41 @@ void PixelDriver::start() {
 void PixelDriver::pixelTask() {
     ESP_LOGI(TAG, "pixelTask: started on core %d", xPortGetCoreID());
 
+    unsigned long frameCount = 0;
+    auto startMillis = millis();
+    auto lastFrameMillis = millis();
+    uint32_t minFramePeriodMillis = UINT32_MAX;
+    uint32_t maxFramePeriodMillis = 0;
+
     while (true) {
         PixelFrame frame;
         artnetQueue_.pop(frame);
-
         pixelHandler_.write(frame);
 
-        ESP_LOGD(TAG, "%lu ms since last frame", millis() - lastFrameMillis_);
-        lastFrameMillis_ = millis();
+        auto currentMillis = millis();
+        auto framePeriodMillis = currentMillis - lastFrameMillis;
+        lastFrameMillis = currentMillis;
+        auto passedMillis = currentMillis - startMillis;
+
+        if (framePeriodMillis < minFramePeriodMillis) {
+            minFramePeriodMillis = framePeriodMillis;
+        }
+
+        if (framePeriodMillis > maxFramePeriodMillis) {
+            maxFramePeriodMillis = framePeriodMillis;
+        }
+
+        frameCount++;
+
+        if (passedMillis >= 5000) {
+            ESP_LOGI(TAG, "Frames per second: %.2f; min, max frame period (ms): (%d, %d)",
+                     (float)frameCount / (passedMillis / 1000.0), minFramePeriodMillis, maxFramePeriodMillis);
+
+            frameCount = 0;
+            minFramePeriodMillis = UINT32_MAX;
+            maxFramePeriodMillis = 0;
+            startMillis = currentMillis;
+        }
     }
 }
 

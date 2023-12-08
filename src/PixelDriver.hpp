@@ -18,7 +18,6 @@ class PixelDriver {
     AbstractPixelHandler &pixelHandler_;
     std::vector<std::shared_ptr<AbstractInterfaceHandler>> &interfaces_;
     BlockingRingBuffer<PixelFrame> &artnetQueue_;
-    unsigned long lastFrameMillis_;
 
     void pixelTask();
     void interfaceTask();

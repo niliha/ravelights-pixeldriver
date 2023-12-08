@@ -2,7 +2,6 @@
 
 #include <array>
 
-// Don't expose OUTPUT_COUNT publicly
 namespace {
 constexpr int ARRAY_SIZE = 4;
 }

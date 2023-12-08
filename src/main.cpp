@@ -29,7 +29,7 @@ OutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIG
 
 const EOrder RGB_ORDER = EOrder::RGB;
 
-const char *INSTANCE_ID = "ravelights";
+const char *INSTANCE_ID = "pixeldriver-box";
 
 // Laser Cage
 // const int DATA_PIN = 7;
@@ -57,7 +57,9 @@ extern "C" void app_main() {
     }
     */
 
-    MDNS.begin(INSTANCE_ID);
+    if (MDNS.begin(INSTANCE_ID)) {
+        ESP_LOGI(TAG,"Started mDNS responder for instance id %s", INSTANCE_ID);
+    }
 
     auto restApi = std::make_shared<RestApi>(80);
 
