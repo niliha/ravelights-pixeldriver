@@ -1,4 +1,5 @@
 #include "PixelDriver.hpp"
+#include "FpsLogger.hpp"
 
 #include <esp32-hal.h>
 
@@ -26,41 +27,15 @@ void PixelDriver::start() {
 void PixelDriver::pixelTask() {
     ESP_LOGI(TAG, "pixelTask: started on core %d", xPortGetCoreID());
 
-    unsigned long frameCount = 0;
-    auto startMillis = millis();
-    auto lastFrameMillis = millis();
-    uint32_t minFramePeriodMillis = UINT32_MAX;
-    uint32_t maxFramePeriodMillis = 0;
+    FpsLogger fpsLogger;
 
     while (true) {
         PixelFrame frame;
         artnetQueue_.pop(frame);
+
         pixelHandler_.write(frame);
 
-        auto currentMillis = millis();
-        auto framePeriodMillis = currentMillis - lastFrameMillis;
-        lastFrameMillis = currentMillis;
-        auto passedMillis = currentMillis - startMillis;
-
-        if (framePeriodMillis < minFramePeriodMillis) {
-            minFramePeriodMillis = framePeriodMillis;
-        }
-
-        if (framePeriodMillis > maxFramePeriodMillis) {
-            maxFramePeriodMillis = framePeriodMillis;
-        }
-
-        frameCount++;
-
-        if (passedMillis >= 5000) {
-            ESP_LOGI(TAG, "Frames per second: %.2f; min, max frame period (ms): (%d, %d)",
-                     (float)frameCount / (passedMillis / 1000.0), minFramePeriodMillis, maxFramePeriodMillis);
-
-            frameCount = 0;
-            minFramePeriodMillis = UINT32_MAX;
-            maxFramePeriodMillis = 0;
-            startMillis = currentMillis;
-        }
+        fpsLogger.notifyFrameReceived();
     }
 }
 
