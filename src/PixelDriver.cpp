@@ -33,9 +33,9 @@ void PixelDriver::pixelTask() {
         PixelFrame frame;
         artnetQueue_.pop(frame);
 
+        auto millisBeforeShow = millis();
         pixelHandler_.write(frame);
-
-        fpsLogger.notifyFrameReceived();
+        fpsLogger.notifyFrameShown(millis() - millisBeforeShow);
     }
 }
 
