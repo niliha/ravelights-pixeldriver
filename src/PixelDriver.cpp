@@ -2,26 +2,26 @@
 #include "FpsLogger.hpp"
 
 #include <esp32-hal.h>
+#include <esp_task.h>
 
 static const char *TAG = "PixelDriver";
 
 PixelDriver::PixelDriver(std::vector<std::shared_ptr<AbstractInterfaceHandler>> &interfaces,
                          BlockingRingBuffer<PixelFrame> &artnetQueue, AbstractPixelHandler &pixelHandler)
     : pixelHandler_(pixelHandler), interfaces_(interfaces), artnetQueue_(artnetQueue) {
-    // The network task on core 1 does not yield to reduce latency.
-    // Therefore, the watchdog on core 1 is not reset anymore, since the idle task is not resumed.
-    // It is disabled to avoid watchdog timeouts resulting in a reboot.
-    disableCore1WDT();
 }
 
 void PixelDriver::start() {
-    // Start artnet task on core 1
-    xTaskCreatePinnedToCore([](void *parameter) { static_cast<PixelDriver *>(parameter)->interfaceTask(); },
-                            "interfaceTask", 4096, this, 1, NULL, 1);
+    // Run interface task on core 0.
+    // Using a lower priority than the lwIP TCP/IP task since most interface handlers rely on the network stack.
+    xTaskCreatePinnedToCore([](void *parameter) { static_cast<PixelDriver *>(parameter)->interfaceTask(); }, "interfaceTask",
+     /* stack size */ 4096, this, /* priority */ ESP_TASK_TCPIP_PRIO - 1, NULL,
+                            /* core */ 0);
 
-    // Start the fastled task on core 0.
+    // Run pixel task on core 1.
+    // Using priority 19 or higher avoids being preempted by any built-in task
     xTaskCreatePinnedToCore([](void *parameter) { static_cast<PixelDriver *>(parameter)->pixelTask(); }, "pixelTask",
-                            4096, this, 1, NULL, 0);
+                            /* stack size */ 4096, this, /* priority */ 19, NULL, /* core */ 1);
 }
 
 void PixelDriver::pixelTask() {
