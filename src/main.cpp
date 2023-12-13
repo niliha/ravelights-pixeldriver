@@ -1,5 +1,5 @@
-#include <nvs_flash.h>
 #include <ESPmDNS.h>
+#include <nvs_flash.h>
 
 #include "PixelDriver.hpp"
 #include "config/PersistentStorage.hpp"
@@ -25,7 +25,7 @@ const int PIXELS_PER_LIGHT = 144;
 // For each output pin, specify how many individually addressable pixels are connected.
 // If there are no pixels connected to a specific pin, set the count to 0.
 OutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
-                                             6 * PIXELS_PER_LIGHT};
+                                        6 * PIXELS_PER_LIGHT};
 
 const EOrder RGB_ORDER = EOrder::RGB;
 
@@ -36,10 +36,6 @@ const char *INSTANCE_ID = "pixeldriver-box";
 // const int SCLK_PIN = 6;
 // const int CS_PIN = 5;
 // const char *INSTANCE_ID = "lasercage";
-
-
-
-
 
 extern "C" void app_main() {
     initArduino();
@@ -62,7 +58,7 @@ extern "C" void app_main() {
     */
 
     if (MDNS.begin(INSTANCE_ID)) {
-        ESP_LOGI(TAG,"Started mDNS responder for instance id %s", INSTANCE_ID);
+        ESP_LOGI(TAG, "Started mDNS responder for instance id %s", INSTANCE_ID);
     }
 
     auto restApi = std::make_shared<RestApi>(80);

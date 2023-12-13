@@ -15,10 +15,14 @@ class PixelDriver {
     void start();
 
  private:
+    static const int INTERFACE_CORE_ = 0;
+    static const int PIXEL_CORE_ = 1;
+
     AbstractPixelHandler &pixelHandler_;
     std::vector<std::shared_ptr<AbstractInterfaceHandler>> &interfaces_;
     BlockingRingBuffer<PixelFrame> &artnetQueue_;
 
     void pixelTask();
     void interfaceTask();
+    void disableWatchdogTimer(int core);
 };
