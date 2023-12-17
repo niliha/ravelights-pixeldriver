@@ -2,30 +2,34 @@
 #include "FpsLogger.hpp"
 
 #include <esp32-hal.h>
+#include <esp_task.h>
+#include <esp_log.h>
 
 static const char *TAG = "PixelDriver";
 
 PixelDriver::PixelDriver(std::vector<std::shared_ptr<AbstractInterfaceHandler>> &interfaces,
                          BlockingRingBuffer<PixelFrame> &artnetQueue, AbstractPixelHandler &pixelHandler)
     : pixelHandler_(pixelHandler), interfaces_(interfaces), artnetQueue_(artnetQueue) {
-    // The network task on core 1 does not yield to reduce latency.
-    // Therefore, the watchdog on core 1 is not reset anymore, since the idle task is not resumed.
-    // It is disabled to avoid watchdog timeouts resulting in a reboot.
-    disableCore1WDT();
 }
 
 void PixelDriver::start() {
-    // Start artnet task on core 1
+    // Run interface task on core 0.
+    // Using a the same priority as the IDLE task such that it can yield to it and keep the watchdog fed
     xTaskCreatePinnedToCore([](void *parameter) { static_cast<PixelDriver *>(parameter)->interfaceTask(); },
-                            "interfaceTask", 4096, this, 1, NULL, 1);
+                            "interfaceTask",
+                            /* stack size */ 4096, this, /* priority */ tskIDLE_PRIORITY, NULL,
+                            /* core */ INTERFACE_CORE_);
 
-    // Start the fastled task on core 0.
+    // Run pixel task on core 1.
+    // Using priority 19 or higher avoids being preempted by any built-in task
     xTaskCreatePinnedToCore([](void *parameter) { static_cast<PixelDriver *>(parameter)->pixelTask(); }, "pixelTask",
-                            4096, this, 1, NULL, 0);
+                            /* stack size */ 4096, this, /* priority */ 19, NULL, /* core */ PIXEL_CORE_);
 }
 
 void PixelDriver::pixelTask() {
-    ESP_LOGI(TAG, "pixelTask: started on core %d", xPortGetCoreID());
+    assert(xPortGetCoreID() == PIXEL_CORE_);
+
+    ESP_LOGI(TAG, "pixelTask: started on core %d", PIXEL_CORE_);
 
     FpsLogger fpsLogger;
 
@@ -40,15 +44,18 @@ void PixelDriver::pixelTask() {
 }
 
 void PixelDriver::interfaceTask() {
-    ESP_LOGI(TAG, "interfaceTask started on core %d", xPortGetCoreID());
+    assert(xPortGetCoreID() == INTERFACE_CORE_);
 
-    for (const auto &networkInterface : interfaces_) {
-        networkInterface->start();
+    ESP_LOGI(TAG, "interfaceTask started on core %d", INTERFACE_CORE_);
+
+    for (const auto &interface : interfaces_) {
+        interface->start();
     }
 
     while (true) {
-        for (const auto &networkInterface : interfaces_) {
-            networkInterface->handleReceived();
+        for (const auto &interface : interfaces_) {
+            interface->handleReceived();
         }
+        taskYIELD();
     }
 }

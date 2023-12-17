@@ -11,6 +11,8 @@ static const char *TAG = "RestApi";
 RestApi::RestApi(int port) : server_(port), port_(port) {
     server_.on("/api/config", HTTP_GET, [this]() { this->on_get_config(); });
     server_.on("/api/config", HTTP_POST, [this]() { this->on_set_config(); });
+
+    server_.enableDelay(false);
 }
 
 void RestApi::start() {
