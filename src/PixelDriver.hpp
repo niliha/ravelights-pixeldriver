@@ -24,5 +24,4 @@ class PixelDriver {
 
     void pixelTask();
     void interfaceTask();
-    void disableWatchdogTimer(int core);
 };

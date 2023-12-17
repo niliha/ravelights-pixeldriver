@@ -1,9 +1,9 @@
 #include "PixelDriver.hpp"
 #include "FpsLogger.hpp"
 
-#include "esp_task_wdt.h"
 #include <esp32-hal.h>
 #include <esp_task.h>
+#include <esp_log.h>
 
 static const char *TAG = "PixelDriver";
 
@@ -14,10 +14,10 @@ PixelDriver::PixelDriver(std::vector<std::shared_ptr<AbstractInterfaceHandler>> 
 
 void PixelDriver::start() {
     // Run interface task on core 0.
-    // Using a lower priority than the lwIP TCP/IP task since most interface handlers rely on the network stack.
+    // Using a the same priority as the IDLE task such that it can yield to it and keep the watchdog fed
     xTaskCreatePinnedToCore([](void *parameter) { static_cast<PixelDriver *>(parameter)->interfaceTask(); },
                             "interfaceTask",
-                            /* stack size */ 4096, this, /* priority */ ESP_TASK_TCPIP_PRIO - 1, NULL,
+                            /* stack size */ 4096, this, /* priority */ tskIDLE_PRIORITY, NULL,
                             /* core */ INTERFACE_CORE_);
 
     // Run pixel task on core 1.
@@ -48,24 +48,14 @@ void PixelDriver::interfaceTask() {
 
     ESP_LOGI(TAG, "interfaceTask started on core %d", INTERFACE_CORE_);
 
-
     for (const auto &interface : interfaces_) {
         interface->start();
     }
-
-    // Disable watchdog timer for interface core since the tight while loop could starve the idle task.
-    disableWatchdogTimer(INTERFACE_CORE_);
 
     while (true) {
         for (const auto &interface : interfaces_) {
             interface->handleReceived();
         }
-    }
-}
-
-void PixelDriver::disableWatchdogTimer(int core) {
-    TaskHandle_t idleTaskHandle = xTaskGetIdleTaskHandleForCPU(core);
-    if (idleTaskHandle == NULL || esp_task_wdt_delete(idleTaskHandle) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to remove Core %d IDLE task from Watchdog Timer", core);
+        taskYIELD();
     }
 }
