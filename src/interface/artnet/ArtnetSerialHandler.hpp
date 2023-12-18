@@ -2,17 +2,24 @@
 
 #include <functional>
 
+#include "AbstractArtnetHandler.hpp"
+
 typedef std::function<void(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *data)> ArtDmxCallback;
 
-class ArtnetSerial {
+class ArtnetSerialHandler : public AbstractArtnetHandler {
  public:
-    ArtnetSerial(int baudRate = 3000000);
-    void setArtDmxCallback(ArtDmxCallback ArtDmxCallback);
-    void read();
+    ArtnetSerialHandler(BlockingRingBuffer<PixelFrame> &frameQueue, int pixelCount, int baudRate = 3000000,
+                        int uart2RxPin = 16, int uart2TxPin = 17);
+    void start() override;
+    void handleReceived() override;
 
  private:
-    static const int UART2_RX_PIN = 16;
-    static const int UART2_TX_PIN = 17;
+    enum class State {
+        START_DETECTION,
+        OPCODE_PARSING,
+        DMX_DATA_LENGTH_PARSING,
+        DMX_DATA_READING,
+    };
 
     static constexpr const char *ARTNET_HEADER = "Art-Net";
     static const int ART_DMX_OPCODE = 0x5000;
@@ -27,12 +34,9 @@ class ArtnetSerial {
     static const int ART_DMX_LENGTH_LO_OFFSET = 17;
     static const int ART_DMX_DATA_OFFSET = 18;
 
-    enum class State {
-        START_DETECTION,
-        OPCODE_PARSING,
-        DMX_DATA_LENGTH_PARSING,
-        DMX_DATA_READING,
-    };
+    const int baudRate_;
+    const int UART2_RX_PIN_ = 16;
+    const int UART2_TX_PIN_ = 17;
 
     State currentState_ = State::START_DETECTION;
     uint8_t buffer_[ART_DMX_MAXIMUM_LENGTH];
@@ -40,8 +44,7 @@ class ArtnetSerial {
     uint16_t maximumBufferIndex_ = UINT16_MAX;
     uint16_t dmxDataLength_ = 0;
     bool isSynced_ = false;
-
-    ArtDmxCallback onArtDmxFrame_;
+    std::function<void(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t *data)> onArtDmxFrame_;
 
     void startOver(bool success);
 };

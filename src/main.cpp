@@ -1,10 +1,13 @@
 #include <ESPmDNS.h>
 #include <nvs_flash.h>
 
+#include <ArtnetWifi.h>
+
 #include "PixelDriver.hpp"
 #include "config/PersistentStorage.hpp"
 #include "interface/RestApi.hpp"
-#include "interface/artnet/ArtnetHandler.hpp"
+#include "interface/artnet/ArtnetSerialHandler.hpp"
+#include "interface/artnet/ArtnetWifiHandler.hpp"
 #include "network/Network.hpp"
 #include "network/WifiCredentials.hpp"
 #include "pixel/FastLedHandler.hpp"
@@ -66,12 +69,13 @@ extern "C" void app_main() {
     auto outputConfig = PersistentStorage::loadOrStoreFallbackOutputConfig(pixelsPerOutputFallback);
 
     BlockingRingBuffer<PixelFrame> artnetQueue(3);
-    auto artnetHandler =
-        std::make_shared<ArtnetHandler>(artnetQueue, outputConfig.getPixelCount(), ArtnetHandler::Mode::WIFI_ONLY);
+    auto artnetWifiHandler = std::make_shared<ArtnetWifiHandler>(artnetQueue, outputConfig.getPixelCount());
+    // auto artnetSerialHandler = std::make_shared<ArtnetSerialHandler>(artnetQueue, outputConfig.getPixelCount());
 
     std::vector<std::shared_ptr<AbstractInterfaceHandler>> networkInterfaces;
     networkInterfaces.push_back(restApi);
-    networkInterfaces.push_back(artnetHandler);
+    networkInterfaces.push_back(artnetWifiHandler);
+    // networkInterfaces.push_back(artnetSerialHandler);
 
     // Laser Cage
     // LedControl ledControl(DATA_PIN, SCLK_PIN, CS_PIN);
