@@ -1,31 +1,29 @@
-#include "ArtnetSerial.hpp"
+#include "ArtnetSerialHandler.hpp"
 
 #include <HardwareSerial.h>
 
-static const char *TAG = "ArtnetSerial";
+static const char *TAG = "ArtnetSerialHandler";
 
-ArtnetSerial::ArtnetSerial(int baudRate) : onArtDmxFrame_(nullptr) {
+ArtnetSerialHandler::ArtnetSerialHandler(BlockingRingBuffer<PixelFrame> &frameQueue, int pixelCount, int baudRate,
+                                         int uart2RxPin, int uart2TxPin)
+    : AbstractArtnetHandler(frameQueue, pixelCount), baudRate_(baudRate), UART2_RX_PIN_(uart2RxPin),
+      UART2_TX_PIN_(uart2TxPin) {
     // Flush UART RX HW buffer to SW buffer on every received byte
     Serial2.setRxFIFOFull(1);
-    // Increase SW RX buffer to hold up to 15 universes (corresponds to 16 ravelights)
-    Serial2.setRxBufferSize(15 * ART_DMX_MAXIMUM_LENGTH);
-    Serial2.begin(baudRate, SERIAL_8N1, UART2_RX_PIN, UART2_TX_PIN);
+
+    Serial2.setRxBufferSize(UNIVERSE_COUNT_ * ART_DMX_MAXIMUM_LENGTH);
+
+    onArtDmxFrame_ = [this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
+        this->onDmxFrame(universeIndex, length, sequence, data);
+    };
 }
 
-void ArtnetSerial::setArtDmxCallback(ArtDmxCallback artDmxCallback) {
-    onArtDmxFrame_ = artDmxCallback;
+void ArtnetSerialHandler::start() {
+    Serial2.begin(baudRate_, SERIAL_8N1, UART2_RX_PIN_, UART2_TX_PIN_);
+    ESP_LOGI(TAG, "Started Artnet serial handler with baud rate %d", baudRate_);
 }
 
-void ArtnetSerial::startOver(bool success) {
-    if (!success) {
-        isSynced_ = false;
-    }
-    currentBufferIndex_ = -1;
-    maximumBufferIndex_ = UINT16_MAX;
-    currentState_ = State::START_DETECTION;
-}
-
-void ArtnetSerial::read() {
+void ArtnetSerialHandler::handleReceived() {
     if (!Serial2.available()) {
         return;
     }
@@ -102,4 +100,13 @@ void ArtnetSerial::read() {
     }
     }
     }
+}
+
+void ArtnetSerialHandler::startOver(bool success) {
+    if (!success) {
+        isSynced_ = false;
+    }
+    currentBufferIndex_ = -1;
+    maximumBufferIndex_ = UINT16_MAX;
+    currentState_ = State::START_DETECTION;
 }
