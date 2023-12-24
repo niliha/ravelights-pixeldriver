@@ -1,4 +1,7 @@
 #include "PersistentStorage.hpp"
+
+#include <nvs_flash.h>
+
 #include "PreferencesRaii.hpp"
 
 static const char *TAG = "PersistentStorage";
@@ -55,7 +58,6 @@ bool storeOutputConfig(const OutputConfig &newOutputConfig) {
     return true;
 }
 
-
 std::string loadOrStoreFallbackInstanceId(const std::string fallbackInstanceId) {
     std::optional<std::string> currentInstanceId = loadInstanceId();
     const auto &instanceId = currentInstanceId.value_or(fallbackInstanceId);
@@ -95,5 +97,10 @@ bool storeInstanceId(const std::string &newInstanceId) {
 
     ESP_LOGI(TAG, "Wrote instance id %s to flash", newInstanceId.c_str());
     return true;
+}
+
+void clear() {
+    nvs_flash_erase();
+    nvs_flash_init();
 }
 }  // namespace PersistentStorage
