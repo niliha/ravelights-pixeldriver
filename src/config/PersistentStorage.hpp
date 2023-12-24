@@ -15,4 +15,5 @@ std::string loadOrStoreFallbackInstanceId(const std::string fallbackInstanceId);
 std::optional<std::string> loadInstanceId();
 bool storeInstanceId(const std::string &newInstanceId);
 
+void clear();
 }  // namespace PersistentStorage
