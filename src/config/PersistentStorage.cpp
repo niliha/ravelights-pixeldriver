@@ -62,7 +62,7 @@ std::string loadOrStoreFallbackInstanceId(const std::string fallbackInstanceId) 
     std::optional<std::string> currentInstanceId = loadInstanceId();
     const auto &instanceId = currentInstanceId.value_or(fallbackInstanceId);
 
-    ESP_LOGI(TAG, "Using instance id from %s: %s)", currentInstanceId ? "flash" : "fallback", instanceId.c_str());
+    ESP_LOGI(TAG, "Using instance id from %s: %s", currentInstanceId ? "flash" : "fallback", instanceId.c_str());
 
     if (!currentInstanceId) {
         storeInstanceId(fallbackInstanceId);

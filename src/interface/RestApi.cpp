@@ -8,9 +8,9 @@
 
 static const char *TAG = "RestApi";
 
-RestApi::RestApi(int port) : server_(port), port_(port) {
-    server_.on("/api/config", HTTP_GET, [this]() { this->on_get_config(); });
-    server_.on("/api/config", HTTP_POST, [this]() { this->on_set_config(); });
+RestApi::RestApi(int port) : port_(port), server_(port) {
+    server_.on("/api/config", HTTP_GET, [this]() { this->onGetConfig(); });
+    server_.on("/api/config", HTTP_POST, [this]() { this->onSetConfig(); });
 
     server_.enableDelay(false);
 }
@@ -25,7 +25,7 @@ void RestApi::handleReceived() {
     server_.handleClient();
 }
 
-void RestApi::on_get_config() {
+void RestApi::onGetConfig() {
     std::optional<OutputConfig> configOptional = PersistentStorage::loadOutputConfig();
 
     if (configOptional) {
@@ -42,7 +42,7 @@ void RestApi::on_get_config() {
     }
 }
 
-void RestApi::on_set_config() {
+void RestApi::onSetConfig() {
     std::string configString(server_.arg("plain").c_str());
 
     StaticJsonDocument<JSON_ARRAY_SIZE(4)> doc;

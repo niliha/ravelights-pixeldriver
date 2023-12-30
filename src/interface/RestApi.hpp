@@ -11,9 +11,9 @@ class RestApi : public AbstractInterfaceHandler {
     virtual void handleReceived() override;
 
     private:
-    WebServer server_;
     const int port_;
+    WebServer server_;
 
-    void on_get_config();
-    void on_set_config();
+    void onGetConfig();
+    void onSetConfig();
 };
