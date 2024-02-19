@@ -7,6 +7,7 @@
 #include "interface/artnet/ArtnetWifiHandler.hpp"
 #include "network/Network.hpp"
 #include "network/WifiCredentials.hpp"
+#include "pixel/AcDimmer.hpp"
 #include "pixel/FastLedHandler.hpp"
 #include "pixel/LaserCageHandler.hpp"
 
@@ -36,6 +37,37 @@ extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
 
+    std::vector<int> triacPins = {12};
+    int zeroCrossingPin = 4;
+
+    AcDimmer::init(triacPins, zeroCrossingPin);
+
+    PixelFrame pixelFrame(triacPins.size());
+
+    while (true) {
+        ESP_LOGI(TAG, "Turning lamp on slowly...");
+        for (int i = 0; i < 30; i++) {
+            for (auto &pixel : pixelFrame) {
+                pixel.r = i;
+                pixel.g = i;
+                pixel.b = i;
+            }
+            AcDimmer::write(pixelFrame);
+            delay(100);
+        }
+
+        ESP_LOGI(TAG, "Turning lamp off slowly...");
+        for (int i = 30; i >= 0; i--) {
+            for (auto &pixel : pixelFrame) {
+                pixel.r = i;
+                pixel.g = i;
+                pixel.b = i;
+            }
+            AcDimmer::write(pixelFrame);
+            delay(100);
+        }
+    }
+
     // --- Persistent storage ----------------------------------------------------------------------
     // PersistentStorage::clear();
     auto outputConfig = PersistentStorage::loadOrStoreFallbackOutputConfig(pixelsPerOutputFallback);
@@ -48,8 +80,8 @@ extern "C" void app_main() {
     }
 
     // if(!Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password)) {
-    //     ESP_LOGE(TAG, "Rebooting because setting up access point with SSID %s failed",WifiCredentials::ssid.c_str());
-    //     ESP.restart();
+    //     ESP_LOGE(TAG, "Rebooting because setting up access point with SSID %s
+    //     failed",WifiCredentials::ssid.c_str()); ESP.restart();
     // }
 
     if (MDNS.begin(instanceId.c_str())) {
