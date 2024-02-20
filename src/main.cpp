@@ -37,16 +37,28 @@ extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
 
-    std::vector<int> triacPins = {12};
+    std::vector<int> triacPins = {22, 18, 19, 12, 21};
     int zeroCrossingPin = 4;
 
     AcDimmer::init(triacPins, zeroCrossingPin);
 
     PixelFrame pixelFrame(triacPins.size());
+    int maxBrightness = 50;
 
     while (true) {
+        /*
+        for (auto &pixel : pixelFrame) {
+            pixel.r = maxBrightness;
+            pixel.g = maxBrightness;
+            pixel.b = maxBrightness;
+        }
+        AcDimmer::write(pixelFrame);
+        delay(30);
+        continue;
+        */
+
         ESP_LOGI(TAG, "Turning lamp on slowly...");
-        for (int i = 0; i < 30; i++) {
+        for (int i = 0; i <= maxBrightness; i++) {
             for (auto &pixel : pixelFrame) {
                 pixel.r = i;
                 pixel.g = i;
@@ -56,8 +68,10 @@ extern "C" void app_main() {
             delay(100);
         }
 
+        delay(1000);
+
         ESP_LOGI(TAG, "Turning lamp off slowly...");
-        for (int i = 30; i >= 0; i--) {
+        for (int i = maxBrightness; i >= 0; i--) {
             for (auto &pixel : pixelFrame) {
                 pixel.r = i;
                 pixel.g = i;
@@ -66,6 +80,7 @@ extern "C" void app_main() {
             AcDimmer::write(pixelFrame);
             delay(100);
         }
+        delay(1000);
     }
 
     // --- Persistent storage ----------------------------------------------------------------------
