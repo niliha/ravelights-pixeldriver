@@ -37,7 +37,7 @@ extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
 
-    std::vector<int> triacPins = {22, 18, 19, 12, 21};
+    std::vector<int> triacPins = {12};
     int zeroCrossingPin = 4;
 
     AcDimmer::init(triacPins, zeroCrossingPin);
