@@ -2,8 +2,8 @@
 #include "FpsLogger.hpp"
 
 #include <esp32-hal.h>
-#include <esp_task.h>
 #include <esp_log.h>
+#include <esp_task.h>
 
 static const char *TAG = "PixelDriver";
 
@@ -18,18 +18,18 @@ void PixelDriver::start() {
     xTaskCreatePinnedToCore([](void *parameter) { static_cast<PixelDriver *>(parameter)->interfaceTask(); },
                             "interfaceTask",
                             /* stack size */ 4096, this, /* priority */ tskIDLE_PRIORITY, NULL,
-                            /* core */ INTERFACE_CORE_);
+                            /* core */ INTERFACE_TASK_CORE_);
 
     // Run pixel task on core 1.
     // Using priority 19 or higher avoids being preempted by any built-in task
     xTaskCreatePinnedToCore([](void *parameter) { static_cast<PixelDriver *>(parameter)->pixelTask(); }, "pixelTask",
-                            /* stack size */ 4096, this, /* priority */ 19, NULL, /* core */ PIXEL_CORE_);
+                            /* stack size */ 4096, this, /* priority */ 19, NULL, /* core */ PIXEL_TASK_CORE_);
 }
 
 void PixelDriver::pixelTask() {
-    assert(xPortGetCoreID() == PIXEL_CORE_);
+    assert(xPortGetCoreID() == PIXEL_TASK_CORE_);
 
-    ESP_LOGI(TAG, "pixelTask: started on core %d", PIXEL_CORE_);
+    ESP_LOGI(TAG, "pixelTask: started on core %d", PIXEL_TASK_CORE_);
 
     FpsLogger fpsLogger;
 
@@ -44,9 +44,9 @@ void PixelDriver::pixelTask() {
 }
 
 void PixelDriver::interfaceTask() {
-    assert(xPortGetCoreID() == INTERFACE_CORE_);
+    assert(xPortGetCoreID() == INTERFACE_TASK_CORE_);
 
-    ESP_LOGI(TAG, "interfaceTask started on core %d", INTERFACE_CORE_);
+    ESP_LOGI(TAG, "interfaceTask started on core %d", INTERFACE_TASK_CORE_);
 
     for (const auto &interface : interfaces_) {
         interface->start();

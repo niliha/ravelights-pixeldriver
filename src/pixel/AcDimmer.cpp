@@ -2,17 +2,19 @@
 
 #include <Arduino.h>
 
+#include "PixelDriver.hpp"
+
 namespace AcDimmer {
 namespace {
 struct TriacEvent {
     uint16_t delayMicros;
-    uint8_t pin;
+    uint8_t index;
     bool turnOn;
 
-    TriacEvent(uint16_t delayMicros, uint8_t pin, bool turnOn) : delayMicros(delayMicros), pin(pin), turnOn(turnOn) {
+    TriacEvent(uint16_t delayMicros, uint8_t pin, bool turnOn) : delayMicros(delayMicros), index(pin), turnOn(turnOn) {
     }
 
-    TriacEvent() : delayMicros(0), pin(0), turnOn(false) {
+    TriacEvent() : delayMicros(0), index(0), turnOn(false) {
     }
 
     bool operator<(const TriacEvent &other) const {
@@ -36,10 +38,12 @@ hw_timer_t *triacEventTimer_;
 std::vector<TriacEvent> eventsBackBuffer_;
 std::vector<TriacEvent> eventsFrontBuffer_;
 SemaphoreHandle_t backBufferUpdatedSem_ = xSemaphoreCreateBinary();
+SemaphoreHandle_t zeroCrossingDetectedSem_ = xSemaphoreCreateBinary();
 SemaphoreHandle_t backBufferMutex_ = xSemaphoreCreateMutex();
+QueueHandle_t eventQueue_;
 
 int currentTriacEventIndex_ = 0;
-int lastZeroCrossingMicros_ = 0;
+volatile int lastZeroCrossingMicros_ = 0;
 
 void IRAM_ATTR onZeroCrossing() {
     // Debounce the zero crossing signal
@@ -63,35 +67,45 @@ void IRAM_ATTR onZeroCrossing() {
         xSemaphoreGiveFromISR(backBufferMutex_, nullptr);
     }
 
-    // Front buffer should only be empty if write() has not been called yet
-    if (eventsFrontBuffer_.empty()) {
-        return;
+    // Schedule the first TRIAC event if write() has been called yet.
+    // Subsequent events will be scheduled by the timer interrupt
+    if (!eventsFrontBuffer_.empty()) {
+        timerAlarmWrite(triacEventTimer_, eventsFrontBuffer_[0].delayMicros, false);
+        timerAlarmEnable(triacEventTimer_);
     }
-
-    // Schedule the first TRIAC event. Subsequent events will be scheduled by the timer interrupt
-    timerAlarmWrite(triacEventTimer_, eventsFrontBuffer_[0].delayMicros, false);
-    timerAlarmEnable(triacEventTimer_);
 }
 
-void IRAM_ATTR handleTriacEvent() {
+void IRAM_ATTR onTimerAlarm() {
     auto currentEvent = eventsFrontBuffer_[currentTriacEventIndex_];
-    if (currentEvent.turnOn) {
-        digitalWrite(currentEvent.pin, HIGH);
-    } else {
-        digitalWrite(currentEvent.pin, LOW);
+
+    // Send the current event to the triac task
+    auto unblockTriacTask = pdFALSE;
+    xQueueSendFromISR(eventQueue_, &currentEvent, &unblockTriacTask);
+
+    // Schedule the next triac event if there is any left
+    if (currentTriacEventIndex_ < eventsFrontBuffer_.size() - 1) {
+        auto nextDelayMicros = eventsFrontBuffer_[currentTriacEventIndex_ + 1].delayMicros;
+        currentTriacEventIndex_++;
+
+        timerAlarmWrite(triacEventTimer_, nextDelayMicros, false);
+        timerAlarmEnable(triacEventTimer_);
     }
 
-    if (currentTriacEventIndex_ >= eventsFrontBuffer_.size() - 1) {
-        // The last triac event was handled, thus no further events need to be scheduled
-        return;
+    // Immediately switch to the triac task if it was waiting for a new event
+    if (unblockTriacTask) {
+        portYIELD_FROM_ISR();
     }
+}
 
-    // Schedule the next triac event
-    auto nextDelayMicros = eventsFrontBuffer_[currentTriacEventIndex_ + 1].delayMicros;
-    currentTriacEventIndex_++;
+void triacTask(void *param) {
+    ESP_LOGI(TAG, "triacTask started on core %d", xPortGetCoreID());
 
-    timerAlarmWrite(triacEventTimer_, nextDelayMicros, false);
-    timerAlarmEnable(triacEventTimer_);
+    while (true) {
+        TriacEvent event;
+        xQueueReceive(eventQueue_, &event, portMAX_DELAY);
+
+        digitalWrite(triacPins_[event.index], event.turnOn ? HIGH : LOW);
+    }
 }
 
 }  // namespace
@@ -101,6 +115,7 @@ int zeroCrossingCounter = 0;
 void init(const std::vector<int> triacPins, const int zeroCrossingPin) {
     triacPins_ = triacPins;
     zeroCrossingPin_ = zeroCrossingPin;
+    eventQueue_ = xQueueCreate(triacPins.size() * 2, sizeof(TriacEvent));
 
     for (const int &pin : triacPins_) {
         pinMode(pin, OUTPUT);
@@ -112,11 +127,15 @@ void init(const std::vector<int> triacPins, const int zeroCrossingPin) {
     triacEventTimer_ = timerBegin(0, getCpuFrequencyMhz(), true);
 
     // FIXME: Once arduino-esp32 is v3.0.0 is released, timerAttachInterruptWithArg() can be used.
-    timerAttachInterrupt(triacEventTimer_, &handleTriacEvent, true);
+    timerAttachInterrupt(triacEventTimer_, &onTimerAlarm, true);
     attachInterrupt(zeroCrossingPin_, &onZeroCrossing, RISING);
 
     ESP_LOGI(TAG, "AcDimmer initialized with %d triac pins and zero crossing pin %d", triacPins_.size(),
              zeroCrossingPin_);
+
+    xTaskCreatePinnedToCore(&triacTask, "triacTask",
+                            /* stack size */ 4096, nullptr, /* priority */ PixelDriver::PIXEL_TASK_PRIORITY_, NULL,
+                            /* core */ PixelDriver::PIXEL_TASK_CORE_);
 }
 
 void write(const PixelFrame &frame) {
@@ -127,7 +146,7 @@ void write(const PixelFrame &frame) {
 
     eventsBackBuffer_.clear();
     for (int i = 0; i < frame.size(); i++) {
-        uint8_t brightness = (frame[i].r + frame[i].g + frame[i].b) / 3;
+        uint8_t brightness = max(max(frame[i].r, frame[i].g), frame[i].b);
 
         // Make sure TRIAC is not activated if brightness is zero
         if (brightness == 0) {
@@ -141,7 +160,7 @@ void write(const PixelFrame &frame) {
         eventsBackBuffer_.emplace_back(triacOffDelay, triacPins_[i], false);
     }
 
-    // Sort the TRIAC events in the back buffer by increasing zero crossing offset
+    // Sort the TRIAC events in the back buffer by increasing zero crossing delay
     std::sort(eventsBackBuffer_.begin(), eventsBackBuffer_.end());
 
     xSemaphoreGive(backBufferMutex_);
