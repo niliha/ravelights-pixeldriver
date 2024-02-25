@@ -33,10 +33,7 @@ const uint8_t BRIGHTNESS = 200;
 std::string instanceIdFallback = "pixeldriver-box";
 // std::string instanceIdFallback = "pixeldriver-lasercage";
 
-extern "C" void app_main() {
-    initArduino();
-    Serial.begin(115200);
-
+void dimTask(void *parameters) {
     std::vector<int> triacPins = {12};
     int zeroCrossingPin = 4;
 
@@ -53,11 +50,12 @@ extern "C" void app_main() {
             pixel.b = maxBrightness;
         }
         AcDimmer::write(pixelFrame);
-        delay(30);
+        delay(1000);
+        ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         continue;
         */
 
-        ESP_LOGI(TAG, "Turning lamp on slowly...");
+        ESP_LOGI(TAG, "Turning lamp on slowly.... core: %d", xPortGetCoreID());
         for (int i = 0; i <= maxBrightness; i++) {
             for (auto &pixel : pixelFrame) {
                 pixel.r = i;
@@ -66,6 +64,7 @@ extern "C" void app_main() {
             }
             AcDimmer::write(pixelFrame);
             delay(100);
+            ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
 
         delay(1000);
@@ -79,7 +78,21 @@ extern "C" void app_main() {
             }
             AcDimmer::write(pixelFrame);
             delay(100);
+            ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
+        delay(1000);
+        char buffer[2048];
+        vTaskList(buffer);
+        ESP_LOGI(TAG, "Task list: \n%s", buffer);
+    }
+}
+extern "C" void app_main() {
+    initArduino();
+    Serial.begin(115200);
+
+    xTaskCreatePinnedToCore(&dimTask, "dimTask", 4096, nullptr, 1, nullptr, 0);
+
+    while (true) {
         delay(1000);
     }
 
