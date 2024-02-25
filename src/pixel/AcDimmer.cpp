@@ -7,11 +7,11 @@
 namespace AcDimmer {
 namespace {
 struct TriacEvent {
-    uint16_t delayMicros;
+    uint32_t delayMicros;
     uint8_t index;
     bool turnOn;
 
-    TriacEvent(uint16_t delayMicros, uint8_t pin, bool turnOn) : delayMicros(delayMicros), index(pin), turnOn(turnOn) {
+    TriacEvent(uint32_t delayMicros, uint8_t pin, bool turnOn) : delayMicros(delayMicros), index(pin), turnOn(turnOn) {
     }
 
     TriacEvent() : delayMicros(0), index(0), turnOn(false) {
@@ -42,7 +42,7 @@ SemaphoreHandle_t zeroCrossingDetectedSem_ = xSemaphoreCreateBinary();
 SemaphoreHandle_t backBufferMutex_ = xSemaphoreCreateMutex();
 QueueHandle_t eventQueue_;
 
-int currentTriacEventIndex_ = 0;
+volatile int currentTriacEventIndex_ = 0;
 volatile int lastZeroCrossingMicros_ = 0;
 
 void IRAM_ATTR onZeroCrossing() {
@@ -77,6 +77,8 @@ void IRAM_ATTR onZeroCrossing() {
 
 void IRAM_ATTR onTimerAlarm() {
     auto currentEvent = eventsFrontBuffer_[currentTriacEventIndex_];
+    // FIXME: Remove this line, it's only for debugging
+    currentEvent.delayMicros = micros();
 
     // Send the current event to the triac task
     auto unblockTriacTask = pdFALSE;
@@ -97,20 +99,23 @@ void IRAM_ATTR onTimerAlarm() {
     }
 }
 
-void triacTask(void *param) {
+void IRAM_ATTR triacTask(void *param) {
+
     ESP_LOGI(TAG, "triacTask started on core %d", xPortGetCoreID());
 
+    TriacEvent event;
     while (true) {
-        TriacEvent event;
         xQueueReceive(eventQueue_, &event, portMAX_DELAY);
-
+        // if (xQueueReceiveFromISR(eventQueue_, &event, nullptr)) {
         digitalWrite(triacPins_[event.index], event.turnOn ? HIGH : LOW);
+        receiveDelayMicros = micros() - event.delayMicros;
     }
 }
 
 }  // namespace
 
 int zeroCrossingCounter = 0;
+int receiveDelayMicros = 0;
 
 void init(const std::vector<int> triacPins, const int zeroCrossingPin) {
     triacPins_ = triacPins;
@@ -134,8 +139,8 @@ void init(const std::vector<int> triacPins, const int zeroCrossingPin) {
              zeroCrossingPin_);
 
     xTaskCreatePinnedToCore(&triacTask, "triacTask",
-                            /* stack size */ 4096, nullptr, /* priority */ PixelDriver::PIXEL_TASK_PRIORITY_, NULL,
-                            /* core */ PixelDriver::PIXEL_TASK_CORE_);
+                            /* stack size */ 4096, nullptr, /* priority */ configMAX_PRIORITIES, NULL,
+                            /* core */ 1);
 }
 
 void write(const PixelFrame &frame) {
@@ -154,10 +159,10 @@ void write(const PixelFrame &frame) {
         }
 
         auto triacOnDelay = map(brightness, 0, UINT8_MAX, MAX_TRIAC_ON_DELAY_MICROS_, MIN_TRIAC_ON_DELAY_MICROS_);
-        eventsBackBuffer_.emplace_back(triacOnDelay, triacPins_[i], true);
+        eventsBackBuffer_.emplace_back(triacOnDelay, i, true);
 
         auto triacOffDelay = triacOnDelay + TRIAC_ON_DURATION_MICROS_;
-        eventsBackBuffer_.emplace_back(triacOffDelay, triacPins_[i], false);
+        eventsBackBuffer_.emplace_back(triacOffDelay, i, false);
     }
 
     // Sort the TRIAC events in the back buffer by increasing zero crossing delay

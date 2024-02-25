@@ -8,8 +8,11 @@
 static const char *TAG = "PixelDriver";
 
 PixelDriver::PixelDriver(std::vector<std::shared_ptr<AbstractInterfaceHandler>> &interfaces,
-                         BlockingRingBuffer<PixelFrame> &artnetQueue, AbstractPixelHandler &pixelHandler)
-    : pixelHandler_(pixelHandler), interfaces_(interfaces), artnetQueue_(artnetQueue) {
+                         BlockingRingBuffer<PixelFrame> &artnetQueue, AbstractPixelHandler &pixelHandler,
+                         int pixelTaskCore, int pixelTaskPriority, int interfaceTaskCore, int interfaceTaskPriority)
+    : INTERFACE_TASK_CORE_(interfaceTaskCore), INTERFACE_TASK_PRIORITY_(interfaceTaskPriority),
+      PIXEL_TASK_CORE_(pixelTaskCore), PIXEL_TASK_PRIORITY_(pixelTaskPriority), pixelHandler_(pixelHandler),
+      interfaces_(interfaces), artnetQueue_(artnetQueue) {
 }
 
 void PixelDriver::start() {
