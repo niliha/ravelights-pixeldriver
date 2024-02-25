@@ -28,7 +28,7 @@ const char *TAG = "AcDimmer";
 const int MIN_TRIAC_ON_DELAY_MICROS_ = 500;
 const int MAX_TRIAC_ON_DELAY_MICROS_ = 8500;
 const int ZERO_CROSSING_DEBOUNCE_MICROS_ = 1000;
-const int TRIAC_ON_DURATION_MICROS_ = 10;
+const int TRIAC_ON_DURATION_MICROS_ = 100;
 
 std::vector<int> triacPins_;
 int zeroCrossingPin_;
@@ -76,13 +76,9 @@ void IRAM_ATTR onZeroCrossing() {
 }
 
 void IRAM_ATTR onTimerAlarm() {
-    auto currentEvent = eventsFrontBuffer_[currentTriacEventIndex_];
-    // FIXME: Remove this line, it's only for debugging
-    currentEvent.delayMicros = micros();
-
-    // Send the current event to the triac task
+    // Enqueue the current event index for the triac task
     auto unblockTriacTask = pdFALSE;
-    xQueueSendFromISR(eventQueue_, &currentEvent, &unblockTriacTask);
+    xQueueSendFromISR(eventQueue_, (const void *)&currentTriacEventIndex_, &unblockTriacTask);
 
     // Schedule the next triac event if there is any left
     if (currentTriacEventIndex_ < eventsFrontBuffer_.size() - 1) {
@@ -103,12 +99,13 @@ void IRAM_ATTR triacTask(void *param) {
 
     ESP_LOGI(TAG, "triacTask started on core %d", xPortGetCoreID());
 
-    TriacEvent event;
     while (true) {
-        xQueueReceive(eventQueue_, &event, portMAX_DELAY);
-        // if (xQueueReceiveFromISR(eventQueue_, &event, nullptr)) {
-        digitalWrite(triacPins_[event.index], event.turnOn ? HIGH : LOW);
-        receiveDelayMicros = micros() - event.delayMicros;
+        int eventIndex;
+        if (xQueueReceive(eventQueue_, &eventIndex, portMAX_DELAY)) {
+            const auto &event = eventsFrontBuffer_[eventIndex];
+            digitalWrite(triacPins_[event.index], event.turnOn ? HIGH : LOW);
+        }
+        // delayMicroseconds(1); // Might be necessary to ensure the triac is turned on for at least 1 us
     }
 }
 
