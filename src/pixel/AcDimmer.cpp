@@ -2,19 +2,19 @@
 
 #include <Arduino.h>
 
+#include <map>
+
 #include "PixelDriver.hpp"
 
 namespace AcDimmer {
 namespace {
 struct TriacEvent {
-    uint32_t delayMicros;
-    uint8_t index;
+    unsigned long delayMicros;
+    std::vector<int> channels;
     bool turnOn;
 
-    TriacEvent(uint32_t delayMicros, uint8_t pin, bool turnOn) : delayMicros(delayMicros), index(pin), turnOn(turnOn) {
-    }
-
-    TriacEvent() : delayMicros(0), index(0), turnOn(false) {
+    TriacEvent(uint32_t delayMicros, std::vector<int> channels, bool turnOn)
+        : delayMicros(delayMicros), channels(channels), turnOn(turnOn) {
     }
 
     bool operator<(const TriacEvent &other) const {
@@ -103,7 +103,9 @@ void IRAM_ATTR triacTask(void *param) {
         int eventIndex;
         if (xQueueReceive(eventQueue_, &eventIndex, portMAX_DELAY)) {
             const auto &event = eventsFrontBuffer_[eventIndex];
-            digitalWrite(triacPins_[event.index], event.turnOn ? HIGH : LOW);
+            for (const auto &index : event.channels) {
+                digitalWrite(triacPins_[index], event.turnOn ? HIGH : LOW);
+            }
         }
         // delayMicroseconds(1); // Might be necessary to ensure the triac is turned on for at least 1 us
     }
@@ -117,7 +119,7 @@ int receiveDelayMicros = 0;
 void init(const std::vector<int> triacPins, const int zeroCrossingPin) {
     triacPins_ = triacPins;
     zeroCrossingPin_ = zeroCrossingPin;
-    eventQueue_ = xQueueCreate(triacPins.size() * 2, sizeof(TriacEvent));
+    eventQueue_ = xQueueCreate(triacPins.size() * 2, sizeof(int));
 
     for (const int &pin : triacPins_) {
         pinMode(pin, OUTPUT);
@@ -147,8 +149,10 @@ void write(const PixelFrame &frame) {
     xSemaphoreTake(backBufferMutex_, portMAX_DELAY);
 
     eventsBackBuffer_.clear();
-    for (int i = 0; i < frame.size(); i++) {
-        uint8_t brightness = max(max(frame[i].r, frame[i].g), frame[i].b);
+    std::map<uint32_t, std::vector<int>> onChannelsByDelay;
+
+    for (int channel = 0; channel < frame.size(); channel++) {
+        uint8_t brightness = std::max({frame[channel].r, frame[channel].g, frame[channel].b});
 
         // Make sure TRIAC is not activated if brightness is zero
         if (brightness == 0) {
@@ -156,10 +160,14 @@ void write(const PixelFrame &frame) {
         }
 
         auto triacOnDelay = map(brightness, 0, UINT8_MAX, MAX_TRIAC_ON_DELAY_MICROS_, MIN_TRIAC_ON_DELAY_MICROS_);
-        eventsBackBuffer_.emplace_back(triacOnDelay, i, true);
+        onChannelsByDelay[triacOnDelay].push_back(channel);
+    }
 
-        auto triacOffDelay = triacOnDelay + TRIAC_ON_DURATION_MICROS_;
-        eventsBackBuffer_.emplace_back(triacOffDelay, i, false);
+    for (auto &[onDelayMicros, channels] : onChannelsByDelay) {
+        eventsBackBuffer_.emplace_back(onDelayMicros, channels, true);
+
+        auto triacOffDelay = onDelayMicros + TRIAC_ON_DURATION_MICROS_;
+        eventsBackBuffer_.emplace_back(triacOffDelay, channels, false);
     }
 
     // Sort the TRIAC events in the back buffer by increasing zero crossing delay
