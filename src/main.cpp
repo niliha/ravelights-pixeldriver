@@ -33,6 +33,12 @@ const uint8_t BRIGHTNESS = 200;
 std::string instanceIdFallback = "pixeldriver-box";
 // std::string instanceIdFallback = "pixeldriver-lasercage";
 
+void IRAM_ATTR mockZeroCrossing() {
+    digitalWrite(19, HIGH);
+    delayMicroseconds(1);
+    digitalWrite(19, LOW);
+}
+
 void dimTask(void *parameters) {
     std::vector<int> triacPins = {12};
     int zeroCrossingPin = 4;
@@ -41,6 +47,8 @@ void dimTask(void *parameters) {
 
     PixelFrame pixelFrame(triacPins.size());
     int maxBrightness = 50;
+
+    pinMode(19, OUTPUT);
 
     while (true) {
         /*
@@ -64,7 +72,7 @@ void dimTask(void *parameters) {
             }
             AcDimmer::write(pixelFrame);
             delay(100);
-            ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
+            // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
 
         delay(1000);
@@ -78,7 +86,7 @@ void dimTask(void *parameters) {
             }
             AcDimmer::write(pixelFrame);
             delay(100);
-            ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
+            // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
         delay(1000);
         char buffer[2048];
@@ -89,6 +97,12 @@ void dimTask(void *parameters) {
 extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
+    pinMode(19, OUTPUT);
+
+    auto timer = timerBegin(1, 80, true);
+    timerAttachInterrupt(timer, &mockZeroCrossing, true);
+    timerAlarmWrite(timer, 10000, true);
+    timerAlarmEnable(timer);
 
     xTaskCreatePinnedToCore(&dimTask, "dimTask", 4096, nullptr, 1, nullptr, 0);
 
