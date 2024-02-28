@@ -1,5 +1,6 @@
 #include "AcDimmer.hpp"
 
+#include "MCP23S17.h"
 #include <Arduino.h>
 
 #include <map>
@@ -7,7 +8,6 @@
 #include "PixelDriver.hpp"
 
 namespace AcDimmer {
-namespace {
 struct TriacEvent {
     unsigned long delayMicros;
     std::vector<int> channels;
@@ -41,6 +41,8 @@ SemaphoreHandle_t backBufferUpdatedSem_ = xSemaphoreCreateBinary();
 SemaphoreHandle_t zeroCrossingDetectedSem_ = xSemaphoreCreateBinary();
 SemaphoreHandle_t backBufferMutex_ = xSemaphoreCreateMutex();
 QueueHandle_t eventQueue_;
+volatile uint16_t channelValues_ = 0;
+MCP23S17 mcp(5);
 
 volatile int currentTriacEventIndex_ = 0;
 volatile int lastZeroCrossingMicros_ = 0;
@@ -53,6 +55,7 @@ void IRAM_ATTR onZeroCrossing() {
     }
 
     // Reset zero crossing interval
+    // channelValues_ = 0;
     timerAlarmDisable(triacEventTimer_);
     timerRestart(triacEventTimer_);
     lastZeroCrossingMicros_ = currentMicros;
@@ -103,15 +106,19 @@ void IRAM_ATTR triacTask(void *param) {
         int eventIndex;
         if (xQueueReceive(eventQueue_, &eventIndex, portMAX_DELAY)) {
             const auto &event = eventsFrontBuffer_[eventIndex];
-            for (const auto &index : event.channels) {
-                digitalWrite(triacPins_[index], event.turnOn ? HIGH : LOW);
+            for (const auto &channel : event.channels) {
+                if (event.turnOn) {
+                    channelValues_ |= 1 << channel;
+                } else {
+                    channelValues_ &= ~(1 << channel);
+                }
             }
+
+            mcp.write16(channelValues_);
         }
         // delayMicroseconds(1); // Might be necessary to ensure the triac is turned on for at least 1 us
     }
 }
-
-}  // namespace
 
 int zeroCrossingCounter = 0;
 int receiveDelayMicros = 0;
@@ -121,10 +128,26 @@ void init(const std::vector<int> triacPins, const int zeroCrossingPin) {
     zeroCrossingPin_ = zeroCrossingPin;
     eventQueue_ = xQueueCreate(triacPins.size() * 2, sizeof(int));
 
+    ets_printf("spi begin\n");
+    SPI.begin();
+
+    ets_printf("mcp begin\n");
+    assert(mcp.begin());
+    ets_printf("mcp begin done\n");
+
+    mcp.pinMode16(0x0000);
+    mcp.write16(0x0000);
+    ets_printf("mcp port init done\n");
+
+    ESP_LOGI(TAG, "MOSI: %d, MISO: %d, SCK: %d, SS: %d", MOSI, MISO, SCK, SS);
+
+    /*
     for (const int &pin : triacPins_) {
         pinMode(pin, OUTPUT);
         digitalWrite(pin, LOW);
     }
+    */
+
     pinMode(zeroCrossingPin, INPUT_PULLUP);
 
     assert(getCpuFrequencyMhz() == 80 && "160 Hz and 240 Hz are currently not supported due to timer issues ");
