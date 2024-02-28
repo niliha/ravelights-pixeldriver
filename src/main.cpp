@@ -40,7 +40,8 @@ void IRAM_ATTR mockZeroCrossing() {
 }
 
 void dimTask(void *parameters) {
-    std::vector<int> triacPins = {12};
+    // std::vector<int> triacPins = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+    std::vector<int> triacPins = {0};
     int zeroCrossingPin = 4;
 
     AcDimmer::init(triacPins, zeroCrossingPin);
@@ -62,15 +63,30 @@ void dimTask(void *parameters) {
         ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         continue;
         */
+        /*
+        for (int j = 0; j < pixelFrame.size(); j++) {
+            pixelFrame[j].r = j * 3;
+            pixelFrame[j].g = j * 3;
+            pixelFrame[j].b = j * 3;
+        }
+        AcDimmer::write(pixelFrame);
+        delay(1000);
+        continue;
+
+
+        // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
+        */
 
         ESP_LOGI(TAG, "Turning lamp on slowly.... core: %d", xPortGetCoreID());
         for (int i = 0; i <= maxBrightness; i++) {
-            for (auto &pixel : pixelFrame) {
-                pixel.r = i;
-                pixel.g = i;
-                pixel.b = i;
+            for (int j = 0; j < pixelFrame.size(); j++) {
+                pixelFrame[j].r = i + j * 3;
+                pixelFrame[j].g = i + j * 3;
+                pixelFrame[j].b = i + j * 3;
             }
+            auto millisBefore = millis();
             AcDimmer::write(pixelFrame);
+            // ESP_LOGI(TAG, "Write took %lu ms", millis() - millisBefore);
             delay(100);
             // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
@@ -79,30 +95,30 @@ void dimTask(void *parameters) {
 
         ESP_LOGI(TAG, "Turning lamp off slowly...");
         for (int i = maxBrightness; i >= 0; i--) {
-            for (auto &pixel : pixelFrame) {
-                pixel.r = i;
-                pixel.g = i;
-                pixel.b = i;
+            for (int j = 0; j < pixelFrame.size(); j++) {
+                pixelFrame[j].r = i + j * 3;
+                pixelFrame[j].g = i + j * 3;
+                pixelFrame[j].b = i + j * 3;
             }
+            auto millisBefore = millis();
             AcDimmer::write(pixelFrame);
+            // ESP_LOGI(TAG, "Write took %lu ms", millis() - millisBefore);
             delay(100);
             // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
         delay(1000);
-        char buffer[2048];
-        vTaskList(buffer);
-        ESP_LOGI(TAG, "Task list: \n%s", buffer);
     }
 }
 extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
-    pinMode(19, OUTPUT);
 
-    auto timer = timerBegin(1, 80, true);
-    timerAttachInterrupt(timer, &mockZeroCrossing, true);
-    timerAlarmWrite(timer, 10000, true);
-    timerAlarmEnable(timer);
+    // pinMode(19, OUTPUT);
+
+    // auto timer = timerBegin(1, 80, true);
+    // timerAttachInterrupt(timer, &mockZeroCrossing, true);
+    // timerAlarmWrite(timer, 10000, true);
+    // timerAlarmEnable(timer);
 
     xTaskCreatePinnedToCore(&dimTask, "dimTask", 4096, nullptr, 1, nullptr, 0);
 
