@@ -173,13 +173,14 @@ void write(const PixelFrame &frame) {
 
         // Reduce brightness resolution from 8 to 7 bit to increase the delay between subsequent events
         // The last bin corresponding to the value 127 is reserved for the last possible off event
-        brightness = map(brightness, 0, 255, 1, 127);
+        // brightness = map(brightness, 0, 255, 1, 12);
+        brightness = map(brightness, 0, 255, 1, 255);
 
-        auto triacOnDelay = map(brightness, 0, 127, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
+        auto triacOnDelay = map(brightness, 0, 255, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
         channelsByDelay[triacOnDelay].emplace_back(channel, true);
 
         // Schedule the corresponding off event in the next bin
-        auto triacOffDelay = map(brightness - 1, 0, 127, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
+        auto triacOffDelay = map(brightness - 1, 0, 255, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
         channelsByDelay[triacOffDelay].emplace_back(channel, false);
     }
 

@@ -86,7 +86,7 @@ void dimTask(void *parameters) {
             auto millisBefore = millis();
             AcDimmer::write(pixelFrame);
             // ESP_LOGI(TAG, "Write took %lu ms", millis() - millisBefore);
-            delay(30);
+            delay(100);
             // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
 
@@ -102,7 +102,7 @@ void dimTask(void *parameters) {
             auto millisBefore = millis();
             AcDimmer::write(pixelFrame);
             // ESP_LOGI(TAG, "Write took %lu ms", millis() - millisBefore);
-            delay(30);
+            delay(100);
             // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
         delay(1000);
