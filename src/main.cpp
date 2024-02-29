@@ -60,7 +60,6 @@ void dimTask(void *parameters) {
         }
         AcDimmer::write(pixelFrame);
         delay(1000);
-        ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         continue;
         */
         /*
