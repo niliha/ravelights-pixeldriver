@@ -40,8 +40,8 @@ void IRAM_ATTR mockZeroCrossing() {
 }
 
 void dimTask(void *parameters) {
-    // std::vector<int> triacPins = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-    std::vector<int> triacPins = {0};
+    std::vector<int> triacPins = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+    // std::vector<int> triacPins = {0};
     int zeroCrossingPin = 4;
 
     AcDimmer::init(triacPins, zeroCrossingPin);
@@ -87,7 +87,7 @@ void dimTask(void *parameters) {
             auto millisBefore = millis();
             AcDimmer::write(pixelFrame);
             // ESP_LOGI(TAG, "Write took %lu ms", millis() - millisBefore);
-            delay(100);
+            delay(30);
             // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
 
@@ -103,7 +103,7 @@ void dimTask(void *parameters) {
             auto millisBefore = millis();
             AcDimmer::write(pixelFrame);
             // ESP_LOGI(TAG, "Write took %lu ms", millis() - millisBefore);
-            delay(100);
+            delay(30);
             // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
         delay(1000);
