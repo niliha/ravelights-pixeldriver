@@ -25,8 +25,8 @@ struct TriacEvent {
 const char *TAG = "AcDimmer";
 
 // For 230V/50Hz, the zero crossing period is 10 ms
-const int MIN_TRIAC_ON_DELAY_MICROS_ = 500;
-const int MAX_TRIAC_ON_DELAY_MICROS_ = 8500;
+const int MIN_TRIAC_EVENT_DELAY_MICROS_ = 500;
+const int MAX_TRIAC_EVENT_DELAY_MICROS_ = 8500;
 const int ZERO_CROSSING_DEBOUNCE_MICROS_ = 1000;
 const int TRIAC_ON_DURATION_MICROS_ = 100;
 
@@ -131,34 +131,16 @@ void init(const std::vector<int> triacPins, const int zeroCrossingPin) {
     zeroCrossingPin_ = zeroCrossingPin;
     eventQueue_ = xQueueCreate(triacPins.size() * 2, sizeof(int));
 
-    portExpander.begin_SPI(5, &SPI, 0, 8000000UL);
+    portExpander.begin_SPI(5, &SPI, 0, 10000000);
     portExpander.enableAddrPins();
 
     for (int i = 0; i < 16; i++) {
         portExpander.pinMode(i, OUTPUT);
     }
 
-    /*
-    while (true) {
-        auto microsBefore = micros();
-        portExpander.writeGPIOAB(0xffff);
-        auto passedMicros = micros() - microsBefore;
-        ESP_LOGI(TAG, "writeAB took %lu us", passedMicros);
-        delay(1000);
-    }
-    */
-
-    /*
-    for (const int &pin : triacPins_) {
-        pinMode(pin, OUTPUT);
-        digitalWrite(pin, LOW);
-    }
-    */
-
     pinMode(zeroCrossingPin, INPUT_PULLUP);
 
-    assert(getCpuFrequencyMhz() == 80 && "160 Hz and 240 Hz are currently not supported due to timer issues ");
-    triacEventTimer_ = timerBegin(0, getCpuFrequencyMhz(), true);
+    triacEventTimer_ = timerBegin(0, 80, true);
 
     // FIXME: Once arduino-esp32 is v3.0.0 is released, timerAttachInterruptWithArg() can be used.
     timerAttachInterrupt(triacEventTimer_, &onTimerAlarm, true);
@@ -193,11 +175,11 @@ void write(const PixelFrame &frame) {
         // The last bin corresponding to the value 127 is reserved for the last possible off event
         brightness = map(brightness, 0, 255, 1, 127);
 
-        auto triacOnDelay = map(brightness, 0, 127, MAX_TRIAC_ON_DELAY_MICROS_, MIN_TRIAC_ON_DELAY_MICROS_);
+        auto triacOnDelay = map(brightness, 0, 127, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
         channelsByDelay[triacOnDelay].emplace_back(channel, true);
 
         // Schedule the corresponding off event in the next bin
-        auto triacOffDelay = map(brightness - 1, 0, 127, MAX_TRIAC_ON_DELAY_MICROS_, MIN_TRIAC_ON_DELAY_MICROS_);
+        auto triacOffDelay = map(brightness - 1, 0, 127, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
         channelsByDelay[triacOffDelay].emplace_back(channel, false);
     }
 
