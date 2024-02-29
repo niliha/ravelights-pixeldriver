@@ -105,7 +105,7 @@ void IRAM_ATTR triacTask(void *param) {
     while (true) {
         int eventIndex;
         if (xQueueReceive(eventQueue_, &eventIndex, portMAX_DELAY)) {
-            auto microsBefore = micros();
+            // auto microsBefore = micros();
             const auto &event = eventsFrontBuffer_[eventIndex];
             for (const auto &[channel, turnOn] : event.channels) {
                 if (turnOn) {
@@ -116,8 +116,8 @@ void IRAM_ATTR triacTask(void *param) {
             }
 
             portExpander.writeGPIOAB(channelValues_);
-            auto passedMicros = micros() - microsBefore;
-            ets_printf("Handling  event took %lu us\n", passedMicros);
+            // auto passedMicros = micros() - microsBefore;
+            // ets_printf("Handling  event took %lu us\n", passedMicros);
         }
         // delayMicroseconds(1); // Might be necessary to ensure the triac is turned on for at least 1 us
     }
@@ -191,25 +191,31 @@ void write(const PixelFrame &frame) {
 
         // Reduce brightness resolution from 8 to 7 bit to increase the delay between subsequent events
         // The last bin corresponding to the value 127 is reserved for the last possible off event
-        brightness = map(brightness, 0, 255, 0, 126);
+        brightness = map(brightness, 0, 255, 1, 127);
 
         auto triacOnDelay = map(brightness, 0, 127, MAX_TRIAC_ON_DELAY_MICROS_, MIN_TRIAC_ON_DELAY_MICROS_);
         channelsByDelay[triacOnDelay].emplace_back(channel, true);
 
         // Schedule the corresponding off event in the next bin
-        auto triacOffDelay = map(brightness + 1, 0, 127, MAX_TRIAC_ON_DELAY_MICROS_, MIN_TRIAC_ON_DELAY_MICROS_);
+        auto triacOffDelay = map(brightness - 1, 0, 127, MAX_TRIAC_ON_DELAY_MICROS_, MIN_TRIAC_ON_DELAY_MICROS_);
         channelsByDelay[triacOffDelay].emplace_back(channel, false);
     }
 
     for (auto &[delayMicros, channels] : channelsByDelay) {
         eventsBackBuffer_.emplace_back(delayMicros, channels);
-
-        auto triacOffDelay = delayMicros + TRIAC_ON_DURATION_MICROS_;
-        eventsBackBuffer_.emplace_back(triacOffDelay, channels);
     }
 
     // Sort the TRIAC events in the back buffer by increasing zero crossing delay
     std::sort(eventsBackBuffer_.begin(), eventsBackBuffer_.end());
+
+    /*
+    ESP_LOGI(TAG, "**** SCHEDULE *****");
+    for (auto &[delayMicros, channels] : eventsBackBuffer_) {
+        for (auto &[channel, turnOn] : channels) {
+            ESP_LOGI(TAG, "[%lu us] %d=%s", delayMicros, channel, turnOn ? "on" : "off");
+        }
+    }
+    */
 
     xSemaphoreGive(backBufferMutex_);
 
