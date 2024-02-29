@@ -1,20 +1,20 @@
 #include "AcDimmer.hpp"
 
-#include "MCP23S17.h"
+#include <Adafruit_MCP23X17.h>
 #include <Arduino.h>
 
 #include <map>
+#include <utility>
 
 #include "PixelDriver.hpp"
 
 namespace AcDimmer {
 struct TriacEvent {
     unsigned long delayMicros;
-    std::vector<int> channels;
-    bool turnOn;
+    std::vector<std::pair<int, bool>> channels;
 
-    TriacEvent(uint32_t delayMicros, std::vector<int> channels, bool turnOn)
-        : delayMicros(delayMicros), channels(channels), turnOn(turnOn) {
+    TriacEvent(uint32_t delayMicros, std::vector<std::pair<int, bool>> channels)
+        : delayMicros(delayMicros), channels(channels) {
     }
 
     bool operator<(const TriacEvent &other) const {
@@ -42,7 +42,7 @@ SemaphoreHandle_t zeroCrossingDetectedSem_ = xSemaphoreCreateBinary();
 SemaphoreHandle_t backBufferMutex_ = xSemaphoreCreateMutex();
 QueueHandle_t eventQueue_;
 volatile uint16_t channelValues_ = 0;
-MCP23S17 mcp(5);
+Adafruit_MCP23X17 portExpander;
 
 volatile int currentTriacEventIndex_ = 0;
 volatile int lastZeroCrossingMicros_ = 0;
@@ -105,16 +105,19 @@ void IRAM_ATTR triacTask(void *param) {
     while (true) {
         int eventIndex;
         if (xQueueReceive(eventQueue_, &eventIndex, portMAX_DELAY)) {
+            auto microsBefore = micros();
             const auto &event = eventsFrontBuffer_[eventIndex];
-            for (const auto &channel : event.channels) {
-                if (event.turnOn) {
+            for (const auto &[channel, turnOn] : event.channels) {
+                if (turnOn) {
                     channelValues_ |= 1 << channel;
                 } else {
                     channelValues_ &= ~(1 << channel);
                 }
             }
 
-            mcp.write16(channelValues_);
+            portExpander.writeGPIOAB(channelValues_);
+            auto passedMicros = micros() - microsBefore;
+            ets_printf("Handling  event took %lu us\n", passedMicros);
         }
         // delayMicroseconds(1); // Might be necessary to ensure the triac is turned on for at least 1 us
     }
@@ -128,18 +131,22 @@ void init(const std::vector<int> triacPins, const int zeroCrossingPin) {
     zeroCrossingPin_ = zeroCrossingPin;
     eventQueue_ = xQueueCreate(triacPins.size() * 2, sizeof(int));
 
-    ets_printf("spi begin\n");
-    SPI.begin();
+    portExpander.begin_SPI(5, &SPI, 0, 8000000UL);
+    portExpander.enableAddrPins();
 
-    ets_printf("mcp begin\n");
-    assert(mcp.begin());
-    ets_printf("mcp begin done\n");
+    for (int i = 0; i < 16; i++) {
+        portExpander.pinMode(i, OUTPUT);
+    }
 
-    mcp.pinMode16(0x0000);
-    mcp.write16(0x0000);
-    ets_printf("mcp port init done\n");
-
-    ESP_LOGI(TAG, "MOSI: %d, MISO: %d, SCK: %d, SS: %d", MOSI, MISO, SCK, SS);
+    /*
+    while (true) {
+        auto microsBefore = micros();
+        portExpander.writeGPIOAB(0xffff);
+        auto passedMicros = micros() - microsBefore;
+        ESP_LOGI(TAG, "writeAB took %lu us", passedMicros);
+        delay(1000);
+    }
+    */
 
     /*
     for (const int &pin : triacPins_) {
@@ -172,7 +179,7 @@ void write(const PixelFrame &frame) {
     xSemaphoreTake(backBufferMutex_, portMAX_DELAY);
 
     eventsBackBuffer_.clear();
-    std::map<uint32_t, std::vector<int>> onChannelsByDelay;
+    std::map<uint32_t, std::vector<std::pair<int, bool>>> channelsByDelay;
 
     for (int channel = 0; channel < frame.size(); channel++) {
         uint8_t brightness = std::max({frame[channel].r, frame[channel].g, frame[channel].b});
@@ -182,15 +189,23 @@ void write(const PixelFrame &frame) {
             continue;
         }
 
-        auto triacOnDelay = map(brightness, 0, UINT8_MAX, MAX_TRIAC_ON_DELAY_MICROS_, MIN_TRIAC_ON_DELAY_MICROS_);
-        onChannelsByDelay[triacOnDelay].push_back(channel);
+        // Reduce brightness resolution from 8 to 7 bit to increase the delay between subsequent events
+        // The last bin corresponding to the value 127 is reserved for the last possible off event
+        brightness = map(brightness, 0, 255, 0, 126);
+
+        auto triacOnDelay = map(brightness, 0, 127, MAX_TRIAC_ON_DELAY_MICROS_, MIN_TRIAC_ON_DELAY_MICROS_);
+        channelsByDelay[triacOnDelay].emplace_back(channel, true);
+
+        // Schedule the corresponding off event in the next bin
+        auto triacOffDelay = map(brightness + 1, 0, 127, MAX_TRIAC_ON_DELAY_MICROS_, MIN_TRIAC_ON_DELAY_MICROS_);
+        channelsByDelay[triacOffDelay].emplace_back(channel, false);
     }
 
-    for (auto &[onDelayMicros, channels] : onChannelsByDelay) {
-        eventsBackBuffer_.emplace_back(onDelayMicros, channels, true);
+    for (auto &[delayMicros, channels] : channelsByDelay) {
+        eventsBackBuffer_.emplace_back(delayMicros, channels);
 
-        auto triacOffDelay = onDelayMicros + TRIAC_ON_DURATION_MICROS_;
-        eventsBackBuffer_.emplace_back(triacOffDelay, channels, false);
+        auto triacOffDelay = delayMicros + TRIAC_ON_DURATION_MICROS_;
+        eventsBackBuffer_.emplace_back(triacOffDelay, channels);
     }
 
     // Sort the TRIAC events in the back buffer by increasing zero crossing delay
