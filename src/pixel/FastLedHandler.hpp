@@ -1,5 +1,6 @@
 #pragma once
 
+#define FASTLED_ESP32_I2S
 #include <FastLED.h>
 
 #include "PixelFrame.hpp"
@@ -22,22 +23,22 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
         int pixelOffset = 0;
         if (pixelsPerOutput[0] > 0) {
             FastLED.addLeds<CLOCKLESS_CHIPSET, PINS[0], RGB_ORDER>(fastLedPixels_.data(), pixelOffset,
-                                                                       pixelsPerOutput[0]);
+                                                                   pixelsPerOutput[0]);
             pixelOffset += pixelsPerOutput[0];
         }
         if (pixelsPerOutput[1] > 0) {
             FastLED.addLeds<CLOCKLESS_CHIPSET, PINS[1], RGB_ORDER>(fastLedPixels_.data(), pixelOffset,
-                                                                       pixelsPerOutput[1]);
+                                                                   pixelsPerOutput[1]);
             pixelOffset += pixelsPerOutput[1];
         }
         if (pixelsPerOutput[2] > 0) {
             FastLED.addLeds<CLOCKLESS_CHIPSET, PINS[2], RGB_ORDER>(fastLedPixels_.data(), pixelOffset,
-                                                                       pixelsPerOutput[2]);
+                                                                   pixelsPerOutput[2]);
             pixelOffset += pixelsPerOutput[2];
         }
         if (pixelsPerOutput[3] > 0) {
             FastLED.addLeds<CLOCKLESS_CHIPSET, PINS[3], RGB_ORDER>(fastLedPixels_.data(), pixelOffset,
-                                                                       pixelsPerOutput[3]);
+                                                                   pixelsPerOutput[3]);
             pixelOffset += pixelsPerOutput[3];
         }
 
