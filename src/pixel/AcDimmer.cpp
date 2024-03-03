@@ -1,8 +1,9 @@
 #include "AcDimmer.hpp"
 
-#include <Adafruit_MCP23X17.h>
 #include <Arduino.h>
 
+#include "mcp23x17.h"
+#include <driver/spi_master.h>
 #include <map>
 #include <utility>
 
@@ -26,7 +27,7 @@ const char *TAG = "AcDimmer";
 
 // For 230V/50Hz, the zero crossing period is 10 ms
 const int MIN_TRIAC_EVENT_DELAY_MICROS_ = 500;
-const int MAX_TRIAC_EVENT_DELAY_MICROS_ = 8500;
+const int MAX_TRIAC_EVENT_DELAY_MICROS_ = 8800;
 const int ZERO_CROSSING_DEBOUNCE_MICROS_ = 1000;
 const int TRIAC_ON_DURATION_MICROS_ = 100;
 
@@ -42,7 +43,8 @@ SemaphoreHandle_t zeroCrossingDetectedSem_ = xSemaphoreCreateBinary();
 SemaphoreHandle_t backBufferMutex_ = xSemaphoreCreateMutex();
 QueueHandle_t eventQueue_;
 volatile uint16_t channelValues_ = 0;
-Adafruit_MCP23X17 portExpander;
+mcp23x17_t dev = {0};
+// Adafruit_MCP23X17 portExpander;
 
 volatile int currentTriacEventIndex_ = 0;
 volatile int lastZeroCrossingMicros_ = 0;
@@ -115,11 +117,11 @@ void IRAM_ATTR triacTask(void *param) {
                 }
             }
 
-            portExpander.writeGPIOAB(channelValues_);
+            // auto microsBefore = micros();
+            mcp23x17_port_write(&dev, channelValues_);
             // auto passedMicros = micros() - microsBefore;
             // ets_printf("Handling  event took %lu us\n", passedMicros);
         }
-        // delayMicroseconds(1); // Might be necessary to ensure the triac is turned on for at least 1 us
     }
 }
 
@@ -131,12 +133,24 @@ void init(const std::vector<int> triacPins, const int zeroCrossingPin) {
     zeroCrossingPin_ = zeroCrossingPin;
     eventQueue_ = xQueueCreate(triacPins.size() * 2, sizeof(int));
 
-    portExpander.begin_SPI(5, &SPI, 0, 10000000);
-    portExpander.enableAddrPins();
+    spi_bus_config_t cfg = {.mosi_io_num = 23,
+                            .miso_io_num = 19,
+                            .sclk_io_num = 18,
+                            .quadwp_io_num = -1,
+                            .quadhd_io_num = -1,
+                            .max_transfer_sz = 0,
+                            .flags = 0};
 
+    ESP_ERROR_CHECK(spi_bus_initialize(VSPI_HOST, &cfg, SPI_DMA_DISABLED));
+    ESP_ERROR_CHECK(mcp23x17_init_desc_spi(&dev, VSPI_HOST, MCP23X17_MAX_SPI_FREQ, MCP23X17_ADDR_BASE, GPIO_NUM_5));
+
+    // Set all pins as output
     for (int i = 0; i < 16; i++) {
-        portExpander.pinMode(i, OUTPUT);
+        mcp23x17_set_mode(&dev, i, MCP23X17_GPIO_OUTPUT);
     }
+
+    // Note: This is only feasible when not doing concurrent SPI transactions
+    spi_device_acquire_bus(dev.spi_dev, portMAX_DELAY);
 
     pinMode(zeroCrossingPin, INPUT_PULLUP);
 
@@ -174,12 +188,13 @@ void write(const PixelFrame &frame) {
         // Reduce brightness resolution from 8 to 7 bit to increase the delay between subsequent events
         // The last bin corresponding to the value 127 is reserved for the last possible off event
         // brightness = map(brightness, 0, 255, 1, 12);
+
         brightness = map(brightness, 0, 255, 1, 255);
 
         auto triacOnDelay = map(brightness, 0, 255, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
         channelsByDelay[triacOnDelay].emplace_back(channel, true);
 
-        // Schedule the corresponding off event in the next bin
+        // Schedule the corresponding off event in the next time slot
         auto triacOffDelay = map(brightness - 1, 0, 255, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
         channelsByDelay[triacOffDelay].emplace_back(channel, false);
     }
