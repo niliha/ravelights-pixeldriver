@@ -14,7 +14,7 @@ static const char *TAG = "main";
 
 // --- Config --------------------------------------------------------------------------------------
 // The GPIO pins to which lights are connected. Currently, exactly 4 pins are supported
-extern constexpr std::array<int, 4> OUTPUT_PINS = {19, 18, 22, 21};
+extern constexpr std::array<int, 4> OUTPUT_PINS = {18, 19, 21, 22};
 
 // For each of the 4 output pins, specify how many individually addressable pixels are connected.
 // If there are no pixels connected to a specific pin, set the count to 0.
