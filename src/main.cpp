@@ -47,7 +47,7 @@ void dimTask(void *parameters) {
     AcDimmer::init(triacPins, zeroCrossingPin);
 
     PixelFrame pixelFrame(triacPins.size());
-    int maxBrightness = 10;
+    int maxBrightness = 50;
 
     pinMode(19, OUTPUT);
 
@@ -86,11 +86,11 @@ void dimTask(void *parameters) {
             auto millisBefore = millis();
             AcDimmer::write(pixelFrame);
             // ESP_LOGI(TAG, "Write took %lu ms", millis() - millisBefore);
-            delay(1000);
+            delay(100);
             // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
 
-        delay(5000);
+        delay(2000);
 
         ESP_LOGI(TAG, "Turning lamp off slowly...");
         for (int i = maxBrightness; i >= 0; i--) {
@@ -102,10 +102,10 @@ void dimTask(void *parameters) {
             auto millisBefore = millis();
             AcDimmer::write(pixelFrame);
             // ESP_LOGI(TAG, "Write took %lu ms", millis() - millisBefore);
-            delay(1000);
+            delay(100);
             // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
         }
-        delay(5000);
+        delay(2000);
     }
 }
 extern "C" void app_main() {
