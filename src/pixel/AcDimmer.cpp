@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-#include "mcp23x17.h"
+#include "Mcp23s17.hpp"
 #include <driver/spi_master.h>
 #include <map>
 #include <utility>
@@ -43,11 +43,10 @@ SemaphoreHandle_t zeroCrossingDetectedSem_ = xSemaphoreCreateBinary();
 SemaphoreHandle_t backBufferMutex_ = xSemaphoreCreateMutex();
 QueueHandle_t eventQueue_;
 volatile uint16_t channelValues_ = 0;
-mcp23x17_t dev = {0};
-// Adafruit_MCP23X17 portExpander;
-
 volatile int currentTriacEventIndex_ = 0;
 volatile int lastZeroCrossingMicros_ = 0;
+
+Mcp23s17 portExpander_;
 
 void IRAM_ATTR onZeroCrossing() {
     // Debounce the zero crossing signal
@@ -94,7 +93,7 @@ void IRAM_ATTR onTimerAlarm() {
         timerAlarmEnable(triacEventTimer_);
     }
 
-    // Immediately switch to the triac task if it was waiting for a new event
+    // Immediately switch to the triac task if it is waiting for a new event
     if (unblockTriacTask) {
         portYIELD_FROM_ISR();
     }
@@ -107,7 +106,6 @@ void IRAM_ATTR triacTask(void *param) {
     while (true) {
         int eventIndex;
         if (xQueueReceive(eventQueue_, &eventIndex, portMAX_DELAY)) {
-            // auto microsBefore = micros();
             const auto &event = eventsFrontBuffer_[eventIndex];
             for (const auto &[channel, turnOn] : event.channels) {
                 if (turnOn) {
@@ -117,10 +115,7 @@ void IRAM_ATTR triacTask(void *param) {
                 }
             }
 
-            // auto microsBefore = micros();
-            mcp23x17_port_write(&dev, channelValues_);
-            // auto passedMicros = micros() - microsBefore;
-            // ets_printf("Handling  event took %lu us\n", passedMicros);
+            portExpander_.write(0, channelValues_);
         }
     }
 }
@@ -132,25 +127,6 @@ void init(const std::vector<int> triacPins, const int zeroCrossingPin) {
     triacPins_ = triacPins;
     zeroCrossingPin_ = zeroCrossingPin;
     eventQueue_ = xQueueCreate(triacPins.size() * 2, sizeof(int));
-
-    spi_bus_config_t cfg = {.mosi_io_num = 23,
-                            .miso_io_num = 19,
-                            .sclk_io_num = 18,
-                            .quadwp_io_num = -1,
-                            .quadhd_io_num = -1,
-                            .max_transfer_sz = 0,
-                            .flags = 0};
-
-    ESP_ERROR_CHECK(spi_bus_initialize(VSPI_HOST, &cfg, SPI_DMA_DISABLED));
-    ESP_ERROR_CHECK(mcp23x17_init_desc_spi(&dev, VSPI_HOST, MCP23X17_MAX_SPI_FREQ, MCP23X17_ADDR_BASE, GPIO_NUM_5));
-
-    // Set all pins as output
-    for (int i = 0; i < 16; i++) {
-        mcp23x17_set_mode(&dev, i, MCP23X17_GPIO_OUTPUT);
-    }
-
-    // Note: This is only feasible when not doing concurrent SPI transactions
-    spi_device_acquire_bus(dev.spi_dev, portMAX_DELAY);
 
     pinMode(zeroCrossingPin, INPUT_PULLUP);
 
