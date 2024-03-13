@@ -33,77 +33,38 @@ const uint8_t BRIGHTNESS = 200;
 std::string instanceIdFallback = "pixeldriver-box";
 // std::string instanceIdFallback = "pixeldriver-lasercage";
 
-void IRAM_ATTR mockZeroCrossing() {
-    digitalWrite(19, HIGH);
-    delayMicroseconds(1);
-    digitalWrite(19, LOW);
-}
-
 void dimTask(void *parameters) {
-    std::vector<int> triacPins = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-    // std::vector<int> triacPins = {0};
     int zeroCrossingPin = 4;
+    int channelCount = 16;
 
-    AcDimmer::init(triacPins, zeroCrossingPin);
+    AcDimmer::init(channelCount, zeroCrossingPin);
 
-    PixelFrame pixelFrame(triacPins.size());
+    PixelFrame pixelFrame(channelCount);
     int maxBrightness = 50;
-
-    pinMode(19, OUTPUT);
+    int frameMillis = 100;
 
     while (true) {
-        /*
-        for (auto &pixel : pixelFrame) {
-            pixel.r = maxBrightness;
-            pixel.g = maxBrightness;
-            pixel.b = maxBrightness;
-        }
-        AcDimmer::write(pixelFrame);
-        delay(1000);
-        continue;
-        */
-        /*
-        for (int j = 0; j < pixelFrame.size(); j++) {
-            pixelFrame[j].r = j * 3;
-            pixelFrame[j].g = j * 3;
-            pixelFrame[j].b = j * 3;
-        }
-        AcDimmer::write(pixelFrame);
-        delay(1000);
-        continue;
-
-
-        // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
-        */
-
-        ESP_LOGI(TAG, "Turning lamp on slowly.... core: %d", xPortGetCoreID());
-        for (int i = 0; i <= maxBrightness; i++) {
-            for (int j = 0; j < pixelFrame.size(); j++) {
-                pixelFrame[j].r = i + j * 3;
-                pixelFrame[j].g = i + j * 3;
-                pixelFrame[j].b = i + j * 3;
+        ESP_LOGI(TAG, "Turning lamp on slowly...");
+        for (int brightness = 0; brightness <= maxBrightness; brightness++) {
+            for (int channel = 0; channel < pixelFrame.size(); channel++) {
+                pixelFrame[channel].r = brightness + channel * 3;
+                pixelFrame[channel].g = brightness + channel * 3;
+                pixelFrame[channel].b = brightness + channel * 3;
             }
-            auto millisBefore = millis();
             AcDimmer::write(pixelFrame);
-            // ESP_LOGI(TAG, "Write took %lu ms", millis() - millisBefore);
-            delay(100);
-            // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
+            delay(frameMillis);
         }
-
         delay(2000);
 
         ESP_LOGI(TAG, "Turning lamp off slowly...");
-        for (int i = maxBrightness; i >= 0; i--) {
-            for (int j = 0; j < pixelFrame.size(); j++) {
-                pixelFrame[j].r = i + j * 3;
-                pixelFrame[j].g = i + j * 3;
-                pixelFrame[j].b = i + j * 3;
+        for (int brightness = maxBrightness; brightness >= 0; brightness--) {
+            for (int channel = 0; channel < pixelFrame.size(); channel++) {
+                pixelFrame[channel].r = brightness + channel * 3;
+                pixelFrame[channel].g = brightness + channel * 3;
+                pixelFrame[channel].b = brightness + channel * 3;
             }
-            auto millisBefore = millis();
             AcDimmer::write(pixelFrame);
-            // ESP_LOGI(TAG, "Write took %lu ms", millis() - millisBefore);
-            delay(100);
-            // ESP_LOGI(TAG, "Receive delay: %d", AcDimmer::receiveDelayMicros);
+            delay(frameMillis);
         }
         delay(2000);
     }
@@ -112,15 +73,8 @@ extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
 
-    // pinMode(19, OUTPUT);
-
-    // auto timer = timerBegin(1, 80, true);
-    // timerAttachInterrupt(timer, &mockZeroCrossing, true);
-    // timerAlarmWrite(timer, 10000, true);
-    // timerAlarmEnable(timer);
-
+    // FIXME: Just for testing
     xTaskCreatePinnedToCore(&dimTask, "dimTask", 4096, nullptr, 1, nullptr, 0);
-
     while (true) {
         delay(1000);
     }
