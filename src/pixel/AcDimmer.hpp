@@ -4,10 +4,7 @@
 
 namespace AcDimmer {
 
-extern int zeroCrossingCounter;
-extern int receiveDelayMicros;
-
-void init(const std::vector<int> triacPins, const int zeroCrossingPin);
+void init(const int channelCount, const int zeroCrossingPin);
 void write(const PixelFrame &frame);
 
 }  // namespace AcDimmer
