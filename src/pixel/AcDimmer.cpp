@@ -98,18 +98,14 @@ void IRAM_ATTR triacTask(void *param) {
 
     while (true) {
         uint16_t eventIndex;
-        if (xQueueReceive(eventQueue_, &eventIndex, portMAX_DELAY)) {
-            const auto &event = eventsFrontBuffer_[eventIndex];
-            for (const auto &[channel, turnOn] : event.channels) {
-                if (turnOn) {
-                    channelValues_ |= 1 << channel;
-                } else {
-                    channelValues_ &= ~(1 << channel);
-                }
-            }
+        xQueueReceive(eventQueue_, &eventIndex, portMAX_DELAY);
 
-            portExpander_.write(0, channelValues_);
+        const auto &event = eventsFrontBuffer_[eventIndex];
+        for (const auto &[channel, turnOn] : event.channels) {
+            portExpander_.stageChannel(channel, turnOn);
         }
+
+        portExpander_.commitStagedChannels();
     }
 }
 
