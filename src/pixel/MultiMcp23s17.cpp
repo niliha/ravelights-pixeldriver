@@ -1,9 +1,9 @@
-#include "Mcp23s17.hpp"
+#include "MultiMcp23s17.hpp"
 
 #include <string.h>
 
-Mcp23s17::Mcp23s17(int vSpiMosiPin, int vSpiMisoPin, int vSpiSclkPin, int vSpiCsPin, int hSpiMosiPin, int hSpiMisoPin,
-                   int hSpiSclkPin, int hSpiCsPin, unsigned int clockFrequency) {
+MultiMcp23s17::MultiMcp23s17(int vSpiMosiPin, int vSpiMisoPin, int vSpiSclkPin, int vSpiCsPin, int hSpiMosiPin,
+                             int hSpiMisoPin, int hSpiSclkPin, int hSpiCsPin, unsigned int clockFrequency) {
     assert(clockFrequency <= MAX_CLOCK_FREQUENCY_HZ && "MCP23S17 clock frequency must not exceed 10 MHz");
 
     // TODO: Don't use MISO but only MOSI
@@ -35,6 +35,7 @@ Mcp23s17::Mcp23s17(int vSpiMosiPin, int vSpiMisoPin, int vSpiSclkPin, int vSpiCs
     vSpiDeviceConfig.clock_speed_hz = clockFrequency;
     vSpiDeviceConfig.mode = 0;
     vSpiDeviceConfig.queue_size = 1;
+    vSpiDeviceConfig.flags = SPI_DEVICE_NO_DUMMY;
 
     spi_device_interface_config_t hSpiDeviceConfig;
     memset(&hSpiDeviceConfig, 0, sizeof(hSpiDeviceConfig));
@@ -42,14 +43,15 @@ Mcp23s17::Mcp23s17(int vSpiMosiPin, int vSpiMisoPin, int vSpiSclkPin, int vSpiCs
     hSpiDeviceConfig.clock_speed_hz = clockFrequency;
     hSpiDeviceConfig.mode = 0;
     hSpiDeviceConfig.queue_size = 1;
+    hSpiDeviceConfig.flags = SPI_DEVICE_NO_DUMMY;
 
     ESP_ERROR_CHECK(spi_bus_add_device(VSPI_HOST, &vSpiDeviceConfig, &vSpiDeviceHandle_));
     ESP_ERROR_CHECK(spi_bus_add_device(HSPI_HOST, &hSpiDeviceConfig, &hSpiDeviceHandle_));
 
     // Avoids the bus acquisition overhead for individual transmissions.
     // However, wile the bus is acquired, no other device can use it.
-    spi_device_acquire_bus(vSpiDeviceHandle_, portMAX_DELAY);
-    spi_device_acquire_bus(hSpiDeviceHandle_, portMAX_DELAY);
+    ESP_ERROR_CHECK(spi_device_acquire_bus(vSpiDeviceHandle_, portMAX_DELAY));
+    ESP_ERROR_CHECK(spi_device_acquire_bus(hSpiDeviceHandle_, portMAX_DELAY));
 
     // Since hardware addressing is not enabled yet, this configures all devices on the respective bus
     configureAllPinsAsOutputs(vSpiDeviceHandle_, 7);
@@ -59,7 +61,7 @@ Mcp23s17::Mcp23s17(int vSpiMosiPin, int vSpiMisoPin, int vSpiSclkPin, int vSpiCs
     enableHardwareAddressing(hSpiDeviceHandle_);
 }
 
-void Mcp23s17::enableHardwareAddressing(spi_device_handle_t spiDeviceHandle) {
+void MultiMcp23s17::enableHardwareAddressing(spi_device_handle_t spiDeviceHandle) {
     // Enable hardware addressing for all MCP23S17 on this bus
     // Due to a silicon errata, devices with the A2 pin pulled high need to be addressed with
     // the A2 bit set even if hardware addressing is disabled.
@@ -69,55 +71,79 @@ void Mcp23s17::enableHardwareAddressing(spi_device_handle_t spiDeviceHandle) {
     writeRegister8Bit(spiDeviceHandle, 7, IOCON_REGISTER, 1 << IOCON_HAEN_BIT);
 }
 
-void Mcp23s17::configureAllPinsAsOutputs(spi_device_handle_t spiDeviceHandle, uint8_t deviceId) {
+void MultiMcp23s17::configureAllPinsAsOutputs(spi_device_handle_t spiDeviceHandle, uint8_t deviceId) {
     // Configure all 16 pins as outputs
     // 0 -> output
     // 1 -> input
     writeRegister16Bit(spiDeviceHandle, deviceId, IODIR_REGISTER, 0x0000);
 }
 
-void Mcp23s17::stageChannel(uint16_t channel, bool turnOn) {
-    int arrayIndex = channel / 16;
-    int bitIndex = channel % 16;
+void IRAM_ATTR MultiMcp23s17::stageChannel(uint16_t channel, bool turnOn) {
+    assert(channel < 64 && "Channel must be in the range [0, 63]");
+
+    int deviceIndex = channel / 16;
+    int channelIndex = channel % 16;
 
     if (turnOn) {
-        stagedChannels_[arrayIndex] |= 1 << bitIndex;
+        stagedChannels_[deviceIndex] |= 1 << channelIndex;
     } else {
-        stagedChannels_[arrayIndex] &= ~(1 << bitIndex);
+        stagedChannels_[deviceIndex] &= ~(1 << channelIndex);
     }
+
+    isDeviceStaged_[deviceIndex] = true;
 }
 
-void Mcp23s17::commitStagedChannels() {
-    // Write channels 0-15 and 16-31 in parallel
-    spi_transaction_t hSpiTransaction1;
-    spi_transaction_t vSpiTransaction1;
-    prepareWriteTransaction16Bit(hSpiTransaction1, 0, GPIOA_REGISTER, stagedChannels_[0]);
-    prepareWriteTransaction16Bit(vSpiTransaction1, 0, GPIOA_REGISTER, stagedChannels_[1]);
+void IRAM_ATTR MultiMcp23s17::commitStagedChannels() {
+    // By utilizing both SPI buses, two MCP23S17 can be written to in parallel.
+    // Note: Writing to all 4 MCP23S17 was measured to take around 30 µs
+    // at 10 Mhz SPI and 240 MHz CPU clock frequency
+    spi_transaction_t hSpiTransaction;
+    spi_transaction_t vSpiTransaction;
 
-    spi_device_polling_start(hSpiDeviceHandle_, &hSpiTransaction1, portMAX_DELAY);
-    spi_device_polling_start(vSpiDeviceHandle_, &vSpiTransaction1, portMAX_DELAY);
-    spi_device_polling_end(hSpiDeviceHandle_, portMAX_DELAY);
-    spi_device_polling_end(vSpiDeviceHandle_, portMAX_DELAY);
+    // Write channels 0-15 (HSPI) and 16-31 (VSPI) in parallel
+    if (isDeviceStaged_[0]) {
+        prepareWriteTransaction16Bit(hSpiTransaction, 0, GPIOA_REGISTER, stagedChannels_[0]);
+        ESP_ERROR_CHECK(spi_device_polling_start(hSpiDeviceHandle_, &hSpiTransaction, portMAX_DELAY));
+    }
+    if (isDeviceStaged_[1]) {
+        prepareWriteTransaction16Bit(vSpiTransaction, 0, GPIOA_REGISTER, stagedChannels_[1]);
+        ESP_ERROR_CHECK(spi_device_polling_start(vSpiDeviceHandle_, &vSpiTransaction, portMAX_DELAY));
+    }
 
-    // Write channels 32-47 and 48-63 in parallel
-    spi_transaction_t hSpiTransaction2;
-    spi_transaction_t vSpiTransaction2;
-    prepareWriteTransaction16Bit(hSpiTransaction2, 1, GPIOA_REGISTER, stagedChannels_[2]);
-    prepareWriteTransaction16Bit(vSpiTransaction2, 1, GPIOA_REGISTER, stagedChannels_[3]);
+    if (isDeviceStaged_[0]) {
+        ESP_ERROR_CHECK(spi_device_polling_end(hSpiDeviceHandle_, portMAX_DELAY));
+    }
+    if (isDeviceStaged_[1]) {
+        ESP_ERROR_CHECK(spi_device_polling_end(vSpiDeviceHandle_, portMAX_DELAY));
+    }
 
-    spi_device_polling_start(hSpiDeviceHandle_, &hSpiTransaction2, portMAX_DELAY);
-    spi_device_polling_start(vSpiDeviceHandle_, &vSpiTransaction2, portMAX_DELAY);
-    spi_device_polling_end(hSpiDeviceHandle_, portMAX_DELAY);
-    spi_device_polling_end(vSpiDeviceHandle_, portMAX_DELAY);
+    // Write channels 32-47 (HSPI) and 48-63 (VSPI) in parallel
+    if (isDeviceStaged_[2]) {
+        prepareWriteTransaction16Bit(hSpiTransaction, 1, GPIOA_REGISTER, stagedChannels_[2]);
+        ESP_ERROR_CHECK(spi_device_polling_start(hSpiDeviceHandle_, &hSpiTransaction, portMAX_DELAY));
+    }
+    if (isDeviceStaged_[3]) {
+        prepareWriteTransaction16Bit(vSpiTransaction, 1, GPIOA_REGISTER, stagedChannels_[3]);
+        ESP_ERROR_CHECK(spi_device_polling_start(vSpiDeviceHandle_, &vSpiTransaction, portMAX_DELAY));
+    }
+
+    if (isDeviceStaged_[2]) {
+        ESP_ERROR_CHECK(spi_device_polling_end(hSpiDeviceHandle_, portMAX_DELAY));
+    }
+    if (isDeviceStaged_[3]) {
+        ESP_ERROR_CHECK(spi_device_polling_end(vSpiDeviceHandle_, portMAX_DELAY));
+    }
+
+    std::fill(isDeviceStaged_.begin(), isDeviceStaged_.end(), false);
 }
 
-uint8_t Mcp23s17::getDeviceAddress(uint8_t deviceId) {
+uint8_t MultiMcp23s17::getDeviceAddress(uint8_t deviceId) {
     assert(deviceId <= 7 && "Device ID must not exceed 7 (0b111)");
     return DEVICE_BASE_ADDRESS | deviceId;
 }
 
-void Mcp23s17::writeRegister8Bit(spi_device_handle_t spiDeviceHandle, uint8_t deviceId, uint8_t registerAddress,
-                                 uint8_t value) {
+void MultiMcp23s17::writeRegister8Bit(spi_device_handle_t spiDeviceHandle, uint8_t deviceId, uint8_t registerAddress,
+                                      uint8_t value) {
     uint8_t deviceAddress = getDeviceAddress(deviceId);
 
     spi_transaction_t transaction;
@@ -135,8 +161,8 @@ void Mcp23s17::writeRegister8Bit(spi_device_handle_t spiDeviceHandle, uint8_t de
     ESP_ERROR_CHECK(spi_device_polling_transmit(vSpiDeviceHandle_, &transaction));
 }
 
-void Mcp23s17::prepareWriteTransaction16Bit(spi_transaction_t &transaction, uint8_t deviceId, uint8_t registerAddress,
-                                            uint16_t value) {
+void MultiMcp23s17::prepareWriteTransaction16Bit(spi_transaction_t &transaction, uint8_t deviceId,
+                                                 uint8_t registerAddress, uint16_t value) {
     uint8_t deviceAddress = getDeviceAddress(deviceId);
 
     memset(&transaction, 0, sizeof(spi_transaction_t));
@@ -151,8 +177,8 @@ void Mcp23s17::prepareWriteTransaction16Bit(spi_transaction_t &transaction, uint
     transaction.flags = SPI_TRANS_USE_TXDATA;
 }
 
-void Mcp23s17::writeRegister16Bit(spi_device_handle_t spiDeviceHandle, uint8_t deviceId, uint8_t registerAddress,
-                                  uint16_t value) {
+void MultiMcp23s17::writeRegister16Bit(spi_device_handle_t spiDeviceHandle, uint8_t deviceId, uint8_t registerAddress,
+                                       uint16_t value) {
     spi_transaction_t transaction;
     prepareWriteTransaction16Bit(transaction, deviceId, registerAddress, value);
 
