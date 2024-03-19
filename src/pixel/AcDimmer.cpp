@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <map>
 
-#include "Mcp23s17.hpp"
+#include "MultiMcp23s17.hpp"
 
 namespace AcDimmer {
 
@@ -14,35 +14,30 @@ struct TriacEvent {
     TriacEvent(uint32_t delayMicros, std::vector<std::pair<int, bool>> channels)
         : delayMicros(delayMicros), channels(channels) {
     }
-
-    bool operator<(const TriacEvent &other) const {
-        return delayMicros < other.delayMicros;
-    }
 };
 
 const char *TAG = "AcDimmer";
 
 // For 230V/50Hz, the zero crossing period is 10 ms.
-// Due to the non-constant zero crossing detection delay, the minimum and maximum delay to turn
+// Due to the (non-consistent) zero crossing detection delay, the minimum and maximum delay to turn
 // a TRIAC on and off must be adapted
 const int MIN_TRIAC_EVENT_DELAY_MICROS_ = 500;
 const int MAX_TRIAC_EVENT_DELAY_MICROS_ = 8800;
 const int ZERO_CROSSING_DEBOUNCE_MICROS_ = 1000;
 
+volatile unsigned long lastZeroCrossingMicros_ = 0;
+
 int channelCount_;
 int zeroCrossingPin_;
-hw_timer_t *triacEventTimer_;
+MultiMcp23s17 portExpander_;
+
+hw_timer_t *eventTimer_;
+QueueHandle_t eventQueue_;
+volatile uint16_t currenEventIndex_ = 0;
 std::vector<TriacEvent> eventsBackBuffer_;
 std::vector<TriacEvent> eventsFrontBuffer_;
 SemaphoreHandle_t backBufferUpdatedSem_ = xSemaphoreCreateBinary();
-SemaphoreHandle_t zeroCrossingDetectedSem_ = xSemaphoreCreateBinary();
 SemaphoreHandle_t backBufferMutex_ = xSemaphoreCreateMutex();
-QueueHandle_t eventQueue_;
-Mcp23s17 portExpander_;
-
-volatile uint16_t channelValues_ = 0;
-volatile uint16_t currentTriacEventIndex_ = 0;
-volatile unsigned long lastZeroCrossingMicros_ = 0;
 
 void IRAM_ATTR onZeroCrossing() {
     // Debounce the zero crossing signal
@@ -52,10 +47,10 @@ void IRAM_ATTR onZeroCrossing() {
     }
 
     // Reset zero crossing interval
-    timerAlarmDisable(triacEventTimer_);
-    timerRestart(triacEventTimer_);
+    timerAlarmDisable(eventTimer_);
+    timerRestart(eventTimer_);
     lastZeroCrossingMicros_ = currentMicros;
-    currentTriacEventIndex_ = 0;
+    currenEventIndex_ = 0;
 
     // Swap the front and back buffer if the back buffer was updated due to write() being called
     if (xSemaphoreTakeFromISR(backBufferMutex_, nullptr)) {
@@ -68,26 +63,26 @@ void IRAM_ATTR onZeroCrossing() {
     // Schedule the first TRIAC event if write() has been called yet.
     // Subsequent events will be scheduled by the timer ISR
     if (!eventsFrontBuffer_.empty()) {
-        timerAlarmWrite(triacEventTimer_, eventsFrontBuffer_[0].delayMicros, false);
-        timerAlarmEnable(triacEventTimer_);
+        timerAlarmWrite(eventTimer_, eventsFrontBuffer_[0].delayMicros, false);
+        timerAlarmEnable(eventTimer_);
     }
 }
 
 void IRAM_ATTR onTimerAlarm() {
     // Enqueue the current event index for the triac task
     auto unblockTriacTask = pdFALSE;
-    xQueueSendFromISR(eventQueue_, (const void *)&currentTriacEventIndex_, &unblockTriacTask);
+    xQueueSendFromISR(eventQueue_, (const void *)&currenEventIndex_, &unblockTriacTask);
 
     // Schedule the next triac event if there is any left
-    if (currentTriacEventIndex_ < eventsFrontBuffer_.size() - 1) {
-        auto nextDelayMicros = eventsFrontBuffer_[currentTriacEventIndex_ + 1].delayMicros;
-        currentTriacEventIndex_++;
+    if (currenEventIndex_ < eventsFrontBuffer_.size() - 1) {
+        auto nextDelayMicros = eventsFrontBuffer_[currenEventIndex_ + 1].delayMicros;
+        currenEventIndex_++;
 
-        timerAlarmWrite(triacEventTimer_, nextDelayMicros, false);
-        timerAlarmEnable(triacEventTimer_);
+        timerAlarmWrite(eventTimer_, nextDelayMicros, false);
+        timerAlarmEnable(eventTimer_);
     }
 
-    // Immediately switch to the triac task if it is waiting for a new event
+    // Immediately switch to the triac task if it is currently waiting for a new event
     if (unblockTriacTask) {
         portYIELD_FROM_ISR();
     }
@@ -96,12 +91,26 @@ void IRAM_ATTR onTimerAlarm() {
 void IRAM_ATTR triacTask(void *param) {
     ESP_LOGI(TAG, "triacTask started on core %d", xPortGetCoreID());
 
+    /*
+    while (true) {
+        portExpander_.stageChannel(0, true);
+        portExpander_.stageChannel(16, true);
+        portExpander_.stageChannel(32, true);
+        portExpander_.stageChannel(48, true);
+
+        auto microsBefore = micros();
+        portExpander_.commitStagedChannels();
+        auto passedMicros = micros() - microsBefore;
+        ESP_LOGI(TAG, "commitStagedChannels took %lu µs", passedMicros);
+        delay(1000);
+    }
+    */
+
     while (true) {
         uint16_t eventIndex;
         xQueueReceive(eventQueue_, &eventIndex, portMAX_DELAY);
 
-        const auto &event = eventsFrontBuffer_[eventIndex];
-        for (const auto &[channel, turnOn] : event.channels) {
+        for (const auto &[channel, turnOn] : eventsFrontBuffer_[eventIndex].channels) {
             portExpander_.stageChannel(channel, turnOn);
         }
 
@@ -117,9 +126,9 @@ void init(const int channelCount, const int zeroCrossingPin) {
 
     pinMode(zeroCrossingPin, INPUT_PULLUP);
 
-    triacEventTimer_ = timerBegin(0, 80, true);
+    eventTimer_ = timerBegin(0, 80, true);
     // FIXME: Once arduino-esp32 is v3.0.0 is released, timerAttachInterruptWithArg() can be used.
-    timerAttachInterrupt(triacEventTimer_, &onTimerAlarm, true);
+    timerAttachInterrupt(eventTimer_, &onTimerAlarm, true);
     attachInterrupt(zeroCrossingPin_, &onZeroCrossing, RISING);
 
     ESP_LOGI(TAG, "AcDimmer initialized with %d channels and zero crossing pin %d", channelCount_, zeroCrossingPin_);
