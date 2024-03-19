@@ -2,14 +2,14 @@
 
 #include <string.h>
 
-MultiMcp23s17::MultiMcp23s17(int vSpiMosiPin, int vSpiMisoPin, int vSpiSclkPin, int vSpiCsPin, int hSpiMosiPin,
-                             int hSpiMisoPin, int hSpiSclkPin, int hSpiCsPin, unsigned int clockFrequency) {
+MultiMcp23s17::MultiMcp23s17(int vSpiMosiPin, int vSpiSclkPin, int vSpiCsPin, int hSpiMosiPin, int hSpiSclkPin,
+                             int hSpiCsPin, unsigned int clockFrequency) {
     assert(clockFrequency <= MAX_CLOCK_FREQUENCY_HZ && "MCP23S17 clock frequency must not exceed 10 MHz");
 
     // TODO: Don't use MISO but only MOSI
 
     spi_bus_config_t vSpiBusConfig = {.mosi_io_num = vSpiMosiPin,
-                                      .miso_io_num = vSpiMisoPin,
+                                      .miso_io_num = -1,  // MISO is needed for write operations
                                       .sclk_io_num = vSpiSclkPin,
                                       .quadwp_io_num = -1,
                                       .quadhd_io_num = -1,
@@ -17,7 +17,7 @@ MultiMcp23s17::MultiMcp23s17(int vSpiMosiPin, int vSpiMisoPin, int vSpiSclkPin, 
                                       .flags = 0};
 
     spi_bus_config_t hSpiBusConfig = {.mosi_io_num = hSpiMosiPin,
-                                      .miso_io_num = hSpiMisoPin,
+                                      .miso_io_num = -1,  // MISO is not needed for write operations
                                       .sclk_io_num = hSpiSclkPin,
                                       .quadwp_io_num = -1,
                                       .quadhd_io_num = -1,
@@ -26,8 +26,8 @@ MultiMcp23s17::MultiMcp23s17(int vSpiMosiPin, int vSpiMisoPin, int vSpiSclkPin, 
 
     // Disable DMA (direct memory access) of transfer data for better performance.
     // This limits the maximum transfer size to 64 bytes which is sufficient for the MCP23S17.
-    ESP_ERROR_CHECK(spi_bus_initialize(VSPI_HOST, &vSpiBusConfig, SPI_DMA_DISABLED));
     ESP_ERROR_CHECK(spi_bus_initialize(HSPI_HOST, &hSpiBusConfig, SPI_DMA_DISABLED));
+    ESP_ERROR_CHECK(spi_bus_initialize(VSPI_HOST, &vSpiBusConfig, SPI_DMA_DISABLED));
 
     spi_device_interface_config_t vSpiDeviceConfig;
     memset(&vSpiDeviceConfig, 0, sizeof(vSpiDeviceConfig));
@@ -53,12 +53,13 @@ MultiMcp23s17::MultiMcp23s17(int vSpiMosiPin, int vSpiMisoPin, int vSpiSclkPin, 
     ESP_ERROR_CHECK(spi_device_acquire_bus(vSpiDeviceHandle_, portMAX_DELAY));
     ESP_ERROR_CHECK(spi_device_acquire_bus(hSpiDeviceHandle_, portMAX_DELAY));
 
-    // Since hardware addressing is not enabled yet, this configures all devices on the respective bus
-    configureAllPinsAsOutputs(vSpiDeviceHandle_, 7);
-    configureAllPinsAsOutputs(hSpiDeviceHandle_, 7);
-
     enableHardwareAddressing(vSpiDeviceHandle_);
     enableHardwareAddressing(hSpiDeviceHandle_);
+
+    configureAllPinsAsOutputs(hSpiDeviceHandle_, 0);
+    configureAllPinsAsOutputs(hSpiDeviceHandle_, 1);
+    configureAllPinsAsOutputs(vSpiDeviceHandle_, 0);
+    configureAllPinsAsOutputs(vSpiDeviceHandle_, 1);
 }
 
 void MultiMcp23s17::enableHardwareAddressing(spi_device_handle_t spiDeviceHandle) {
