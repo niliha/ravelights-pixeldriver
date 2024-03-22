@@ -6,8 +6,6 @@ MultiMcp23s17::MultiMcp23s17(int vSpiMosiPin, int vSpiSclkPin, int vSpiCsPin, in
                              int hSpiCsPin, unsigned int clockFrequency) {
     assert(clockFrequency <= MAX_CLOCK_FREQUENCY_HZ && "MCP23S17 clock frequency must not exceed 10 MHz");
 
-    // TODO: Don't use MISO but only MOSI
-
     spi_bus_config_t vSpiBusConfig = {.mosi_io_num = vSpiMosiPin,
                                       .miso_io_num = -1,  // MISO is needed for write operations
                                       .sclk_io_num = vSpiSclkPin,
@@ -101,37 +99,37 @@ void IRAM_ATTR MultiMcp23s17::commitStagedChannels() {
     spi_transaction_t hSpiTransaction;
     spi_transaction_t vSpiTransaction;
 
-    // Write channels 0-15 (HSPI) and 16-31 (VSPI) in parallel
-    if (isDeviceStaged_[0]) {
-        prepareWriteTransaction16Bit(hSpiTransaction, 0, GPIOA_REGISTER, stagedChannels_[0]);
+    // Write channels 0-15 (HSPI) and 32-47 (VSPI) in parallel
+    if (isDeviceStaged_[2]) {
+        prepareWriteTransaction16Bit(hSpiTransaction, 0, GPIOA_REGISTER, stagedChannels_[2]);
         ESP_ERROR_CHECK(spi_device_polling_start(hSpiDeviceHandle_, &hSpiTransaction, portMAX_DELAY));
     }
-    if (isDeviceStaged_[1]) {
-        prepareWriteTransaction16Bit(vSpiTransaction, 0, GPIOA_REGISTER, stagedChannels_[1]);
+    if (isDeviceStaged_[0]) {
+        prepareWriteTransaction16Bit(vSpiTransaction, 0, GPIOA_REGISTER, stagedChannels_[0]);
         ESP_ERROR_CHECK(spi_device_polling_start(vSpiDeviceHandle_, &vSpiTransaction, portMAX_DELAY));
     }
 
-    if (isDeviceStaged_[0]) {
+    if (isDeviceStaged_[2]) {
         ESP_ERROR_CHECK(spi_device_polling_end(hSpiDeviceHandle_, portMAX_DELAY));
     }
-    if (isDeviceStaged_[1]) {
+    if (isDeviceStaged_[0]) {
         ESP_ERROR_CHECK(spi_device_polling_end(vSpiDeviceHandle_, portMAX_DELAY));
     }
 
-    // Write channels 32-47 (HSPI) and 48-63 (VSPI) in parallel
-    if (isDeviceStaged_[2]) {
-        prepareWriteTransaction16Bit(hSpiTransaction, 1, GPIOA_REGISTER, stagedChannels_[2]);
+    // Write channels 16-31 (HSPI) and 48-63 (VSPI) in parallel
+    if (isDeviceStaged_[3]) {
+        prepareWriteTransaction16Bit(hSpiTransaction, 1, GPIOA_REGISTER, stagedChannels_[3]);
         ESP_ERROR_CHECK(spi_device_polling_start(hSpiDeviceHandle_, &hSpiTransaction, portMAX_DELAY));
     }
-    if (isDeviceStaged_[3]) {
-        prepareWriteTransaction16Bit(vSpiTransaction, 1, GPIOA_REGISTER, stagedChannels_[3]);
+    if (isDeviceStaged_[1]) {
+        prepareWriteTransaction16Bit(vSpiTransaction, 1, GPIOA_REGISTER, stagedChannels_[1]);
         ESP_ERROR_CHECK(spi_device_polling_start(vSpiDeviceHandle_, &vSpiTransaction, portMAX_DELAY));
     }
 
-    if (isDeviceStaged_[2]) {
+    if (isDeviceStaged_[3]) {
         ESP_ERROR_CHECK(spi_device_polling_end(hSpiDeviceHandle_, portMAX_DELAY));
     }
-    if (isDeviceStaged_[3]) {
+    if (isDeviceStaged_[1]) {
         ESP_ERROR_CHECK(spi_device_polling_end(vSpiDeviceHandle_, portMAX_DELAY));
     }
 
