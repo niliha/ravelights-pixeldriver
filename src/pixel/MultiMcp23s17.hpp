@@ -6,8 +6,8 @@
 
 class MultiMcp23s17 {
  public:
-    MultiMcp23s17(int hSpiMosiPin = 13, int hSpiSclkPin = 14, int hSpiCsPin = 15, int vSpiMosiPin = 23,
-                  int vSpiSclkPin = 18, int vSpiCsPin = 5, unsigned int clockFrequency = SPI_MASTER_FREQ_10M);
+    MultiMcp23s17(int spi2MosiPin = 13, int spi2SclkPin = 14, int spi2CsPin = 15, int spi3MosiPin = 23,
+                  int spi3SclkPin = 18, int spi3CsPin = 5, unsigned int clockFrequency = SPI_MASTER_FREQ_10M);
 
     void stageChannel(uint16_t channel, bool turnOn);
     void commitStagedChannels();
@@ -18,14 +18,14 @@ class MultiMcp23s17 {
 
     static const uint8_t IODIR_REGISTER = 0x00;
     static const uint8_t GPIOA_REGISTER = 0x12;
-    static const uint8_t IOCON_REGISTER = 0x05;
+    static const uint8_t IOCON_REGISTER = 0x0A;
 
     static const uint8_t IOCON_HAEN_BIT = 3;
     std::array<uint16_t, 4> stagedChannels_;
     std::array<bool, 4> isDeviceStaged_;
 
-    spi_device_handle_t hSpiDeviceHandle_;
-    spi_device_handle_t vSpiDeviceHandle_;
+    spi_device_handle_t spi2DeviceHandle_;
+    spi_device_handle_t spi3DeviceHandle_;
 
     uint8_t getDeviceAddress(uint8_t deviceId);
 
