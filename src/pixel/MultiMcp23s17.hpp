@@ -21,6 +21,7 @@ class MultiMcp23s17 {
     static const uint8_t IOCON_REGISTER = 0x0A;
 
     static const uint8_t IOCON_HAEN_BIT = 3;
+
     std::array<uint16_t, 4> stagedChannels_;
     std::array<bool, 4> isDeviceStaged_;
 
@@ -39,5 +40,6 @@ class MultiMcp23s17 {
                                       uint16_t value);
 
     void configureAllPinsAsOutputs(spi_device_handle_t spiDeviceHandle, uint8_t deviceId);
+
     void enableHardwareAddressing(spi_device_handle_t spiDeviceHandle);
 };

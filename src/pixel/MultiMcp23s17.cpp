@@ -46,8 +46,9 @@ MultiMcp23s17::MultiMcp23s17(int spi2MosiPin, int spi2SclkPin, int spi2CsPin, in
     ESP_ERROR_CHECK(spi_bus_add_device(SPI3_HOST, &spi3DeviceConfig, &spi3DeviceHandle_));
     ESP_ERROR_CHECK(spi_bus_add_device(SPI2_HOST, &spi2DeviceConfig, &spi2DeviceHandle_));
 
-    // Avoids the bus acquisition overhead for individual transmissions.
+    // Acquiring the bus once here avoids the bus acquisition overhead for individual transmissions.
     // However, wile the bus is acquired, no other device can use it.
+    // For this reason, for each bus two MCP23S17 are treated as a single SPI device in software.
     ESP_ERROR_CHECK(spi_device_acquire_bus(spi2DeviceHandle_, portMAX_DELAY));
     ESP_ERROR_CHECK(spi_device_acquire_bus(spi3DeviceHandle_, portMAX_DELAY));
 
@@ -99,38 +100,38 @@ void IRAM_ATTR MultiMcp23s17::commitStagedChannels() {
     spi_transaction_t spi2Transaction;
     spi_transaction_t spi3Transaction;
 
-    // Write channels 0-15 (SPI2) and 32-47 (SPI3) in parallel
+    // Write channels 0-15 (MCP23S17 with A0=0 at SPI2) and 32-47 (MCP23S17 with A0=0 at SPI3) in parallel
     if (isDeviceStaged_[0]) {
-        prepareWriteTransaction16Bit(spi3Transaction, 0, GPIOA_REGISTER, stagedChannels_[0]);
-        ESP_ERROR_CHECK(spi_device_polling_start(spi3DeviceHandle_, &spi3Transaction, portMAX_DELAY));
-    }
-    if (isDeviceStaged_[2]) {
-        prepareWriteTransaction16Bit(spi2Transaction, 0, GPIOA_REGISTER, stagedChannels_[2]);
+        prepareWriteTransaction16Bit(spi2Transaction, 0, GPIOA_REGISTER, stagedChannels_[0]);
         ESP_ERROR_CHECK(spi_device_polling_start(spi2DeviceHandle_, &spi2Transaction, portMAX_DELAY));
     }
-
-    if (isDeviceStaged_[0]) {
-        ESP_ERROR_CHECK(spi_device_polling_end(spi3DeviceHandle_, portMAX_DELAY));
-    }
     if (isDeviceStaged_[2]) {
-        ESP_ERROR_CHECK(spi_device_polling_end(spi2DeviceHandle_, portMAX_DELAY));
-    }
-
-    // Write channels 16-31 (SPI2) and 48-63 (SPI3) in parallel
-    if (isDeviceStaged_[1]) {
-        prepareWriteTransaction16Bit(spi3Transaction, 1, GPIOA_REGISTER, stagedChannels_[1]);
+        prepareWriteTransaction16Bit(spi3Transaction, 0, GPIOA_REGISTER, stagedChannels_[2]);
         ESP_ERROR_CHECK(spi_device_polling_start(spi3DeviceHandle_, &spi3Transaction, portMAX_DELAY));
     }
-    if (isDeviceStaged_[3]) {
-        prepareWriteTransaction16Bit(spi2Transaction, 1, GPIOA_REGISTER, stagedChannels_[3]);
+
+    if (isDeviceStaged_[0]) {
+        ESP_ERROR_CHECK(spi_device_polling_end(spi2DeviceHandle_, portMAX_DELAY));
+    }
+    if (isDeviceStaged_[2]) {
+        ESP_ERROR_CHECK(spi_device_polling_end(spi3DeviceHandle_, portMAX_DELAY));
+    }
+
+    // Write channels 16-31 (MCP23S17 with A0=1 at SPI2) and 48-63 (MCP23S17 with A0=1 at SPI3) in parallel
+    if (isDeviceStaged_[1]) {
+        prepareWriteTransaction16Bit(spi2Transaction, 1, GPIOA_REGISTER, stagedChannels_[1]);
         ESP_ERROR_CHECK(spi_device_polling_start(spi2DeviceHandle_, &spi2Transaction, portMAX_DELAY));
+    }
+    if (isDeviceStaged_[3]) {
+        prepareWriteTransaction16Bit(spi3Transaction, 1, GPIOA_REGISTER, stagedChannels_[3]);
+        ESP_ERROR_CHECK(spi_device_polling_start(spi3DeviceHandle_, &spi3Transaction, portMAX_DELAY));
     }
 
     if (isDeviceStaged_[1]) {
-        ESP_ERROR_CHECK(spi_device_polling_end(spi3DeviceHandle_, portMAX_DELAY));
+        ESP_ERROR_CHECK(spi_device_polling_end(spi2DeviceHandle_, portMAX_DELAY));
     }
     if (isDeviceStaged_[3]) {
-        ESP_ERROR_CHECK(spi_device_polling_end(spi2DeviceHandle_, portMAX_DELAY));
+        ESP_ERROR_CHECK(spi_device_polling_end(spi3DeviceHandle_, portMAX_DELAY));
     }
 
     std::fill(isDeviceStaged_.begin(), isDeviceStaged_.end(), false);
