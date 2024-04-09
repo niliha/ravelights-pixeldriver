@@ -91,20 +91,6 @@ void IRAM_ATTR onTimerAlarm() {
 void IRAM_ATTR triacTask(void *param) {
     ESP_LOGI(TAG, "triacTask started on core %d", xPortGetCoreID());
 
-    // FIXME: Remove, just for testing
-    while (true) {
-        portExpander_.stageChannel(0, true);
-        portExpander_.stageChannel(16 + 1, true);
-        portExpander_.stageChannel(32 + 2, true);
-        portExpander_.stageChannel(48 + 3, true);
-
-        auto microsBefore = micros();
-        portExpander_.commitStagedChannels();
-        auto passedMicros = micros() - microsBefore;
-        ESP_LOGI(TAG, "commitStagedChannels took %lu µs", passedMicros);
-        delay(1000);
-    }
-
     while (true) {
         uint16_t eventIndex;
         xQueueReceive(eventQueue_, &eventIndex, portMAX_DELAY);
@@ -123,7 +109,7 @@ void init(const int channelCount, const int zeroCrossingPin) {
     // Each channel can result in at most two events (on and off) per zero crossing interval
     eventQueue_ = xQueueCreate(channelCount * 2, sizeof(uint16_t));
 
-    pinMode(zeroCrossingPin, INPUT_PULLUP);
+    pinMode(zeroCrossingPin, INPUT);
 
     eventTimer_ = timerBegin(0, 80, true);
     // FIXME: Once arduino-esp32 is v3.0.0 is released, timerAttachInterruptWithArg() can be used.

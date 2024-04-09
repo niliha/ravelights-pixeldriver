@@ -35,21 +35,21 @@ std::string instanceIdFallback = "pixeldriver-box";
 
 void dimTask(void *parameters) {
     int zeroCrossingPin = 4;
-    int channelCount = 16;
+    int channelCount = 64;
 
     AcDimmer::init(channelCount, zeroCrossingPin);
 
     PixelFrame pixelFrame(channelCount);
-    int maxBrightness = 50;
+    int maxBrightness = 20;
     int frameMillis = 100;
 
     while (true) {
         ESP_LOGI(TAG, "Turning lamp on slowly...");
         for (int brightness = 0; brightness <= maxBrightness; brightness++) {
             for (int channel = 0; channel < pixelFrame.size(); channel++) {
-                pixelFrame[channel].r = brightness + channel * 3;
-                pixelFrame[channel].g = brightness + channel * 3;
-                pixelFrame[channel].b = brightness + channel * 3;
+                pixelFrame[channel].r = brightness + channel;
+                pixelFrame[channel].g = brightness + channel;
+                pixelFrame[channel].b = brightness + channel;
             }
             AcDimmer::write(pixelFrame);
             delay(frameMillis);
@@ -59,9 +59,9 @@ void dimTask(void *parameters) {
         ESP_LOGI(TAG, "Turning lamp off slowly...");
         for (int brightness = maxBrightness; brightness >= 0; brightness--) {
             for (int channel = 0; channel < pixelFrame.size(); channel++) {
-                pixelFrame[channel].r = brightness + channel * 3;
-                pixelFrame[channel].g = brightness + channel * 3;
-                pixelFrame[channel].b = brightness + channel * 3;
+                pixelFrame[channel].r = brightness + channel;
+                pixelFrame[channel].g = brightness + channel;
+                pixelFrame[channel].b = brightness + channel;
             }
             AcDimmer::write(pixelFrame);
             delay(frameMillis);
