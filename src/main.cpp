@@ -35,38 +35,38 @@ std::string instanceIdFallback = "pixeldriver-box";
 
 void dimTask(void *parameters) {
     int zeroCrossingPin = 4;
-    int channelCount = 64;
+    int channelCount = 8;
 
     AcDimmer::init(channelCount, zeroCrossingPin);
 
     PixelFrame pixelFrame(channelCount);
     int maxBrightness = 20;
-    int frameMillis = 100;
+    int frameMillis = 20;
 
     while (true) {
         ESP_LOGI(TAG, "Turning lamp on slowly...");
-        for (int brightness = 0; brightness <= maxBrightness; brightness++) {
-            for (int channel = 0; channel < pixelFrame.size(); channel++) {
-                pixelFrame[channel].r = brightness + channel;
-                pixelFrame[channel].g = brightness + channel;
-                pixelFrame[channel].b = brightness + channel;
+        for (int channel = 0; channel < pixelFrame.size(); channel++) {
+            for (int brightness = 0; brightness <= maxBrightness; brightness++) {
+                pixelFrame[channel].r = brightness;
+                pixelFrame[channel].g = brightness;
+                pixelFrame[channel].b = brightness;
+                AcDimmer::write(pixelFrame);
+                delay(frameMillis);
             }
-            AcDimmer::write(pixelFrame);
-            delay(frameMillis);
         }
-        delay(2000);
+        delay(0);
 
         ESP_LOGI(TAG, "Turning lamp off slowly...");
-        for (int brightness = maxBrightness; brightness >= 0; brightness--) {
-            for (int channel = 0; channel < pixelFrame.size(); channel++) {
-                pixelFrame[channel].r = brightness + channel;
-                pixelFrame[channel].g = brightness + channel;
-                pixelFrame[channel].b = brightness + channel;
+        for (int channel = pixelFrame.size() - 1; channel >= 0; channel--) {
+            for (int brightness = maxBrightness; brightness >= 0; brightness--) {
+                pixelFrame[channel].r = brightness;
+                pixelFrame[channel].g = brightness;
+                pixelFrame[channel].b = brightness;
+                AcDimmer::write(pixelFrame);
+                delay(frameMillis);
             }
-            AcDimmer::write(pixelFrame);
-            delay(frameMillis);
         }
-        delay(2000);
+        delay(0);
     }
 }
 extern "C" void app_main() {
