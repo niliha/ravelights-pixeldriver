@@ -2,7 +2,7 @@
 
 #include <ESPmDNS.h>
 
-static const char *TAG = "ArtnetSerialHandler";
+static const char *TAG = "ArtnetWifiHandler";
 
 ArtnetWifiHandler::ArtnetWifiHandler(BlockingRingBuffer<PixelFrame> &frameQueue, int pixelCount)
     : AbstractArtnetHandler(frameQueue, pixelCount) {

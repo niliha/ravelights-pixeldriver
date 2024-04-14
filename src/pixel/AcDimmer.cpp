@@ -103,7 +103,7 @@ void IRAM_ATTR triacTask(void *param) {
     }
 }
 
-void init(const int channelCount, const int zeroCrossingPin) {
+void init(const int channelCount, const int zeroCrossingPin, const int triacTaskCore) {
     channelCount_ = channelCount;
     zeroCrossingPin_ = zeroCrossingPin;
     // Each channel can result in at most two events (on and off) per zero crossing interval
@@ -111,16 +111,24 @@ void init(const int channelCount, const int zeroCrossingPin) {
 
     pinMode(zeroCrossingPin, INPUT);
 
-    eventTimer_ = timerBegin(0, 80, true);
-    // FIXME: Once arduino-esp32 is v3.0.0 is released, timerAttachInterruptWithArg() can be used.
-    timerAttachInterrupt(eventTimer_, &onTimerAlarm, true);
-    attachInterrupt(zeroCrossingPin_, &onZeroCrossing, RISING);
+    // Initialize timer on the same core that will be used for the triac task
+    xTaskCreatePinnedToCore(
+        [](void *parameters) {
+            eventTimer_ = timerBegin(0, 80, true);
+            // FIXME: Once arduino-esp32 is v3.0.0 is released, timerAttachInterruptWithArg() can be used.
+            timerAttachInterrupt(eventTimer_, &onTimerAlarm, true);
+            attachInterrupt(zeroCrossingPin_, &onZeroCrossing, RISING);
 
-    ESP_LOGI(TAG, "AcDimmer initialized with %d channels and zero crossing pin %d", channelCount_, zeroCrossingPin_);
+            ESP_LOGI(TAG, "AcDimmer initialized on core %d with %d channels and zero crossing pin %d", xPortGetCoreID(),
+                     channelCount_, zeroCrossingPin_);
+
+            vTaskDelete(NULL);
+        },
+        "testLightsTask", 4096, nullptr, 0, nullptr, triacTaskCore);
 
     xTaskCreatePinnedToCore(&triacTask, "triacTask",
                             /* stack size */ 4096, nullptr, /* priority */ configMAX_PRIORITIES, NULL,
-                            /* core */ 1);
+                            /* core */ triacTaskCore);
 }
 
 void write(const PixelFrame &frame) {
@@ -157,6 +165,33 @@ void write(const PixelFrame &frame) {
 
     // Signal the zero crossing ISR that the back buffer was updated
     xSemaphoreGive(backBufferUpdatedSem_);
+}
+
+void testLights() {
+    PixelFrame pixelFrame(channelCount_);
+    int maxBrightness = 20;
+    int frameMillis = 10;
+    ESP_LOGI(TAG, "Turning on lights slowly...");
+    for (int channel = 0; channel < pixelFrame.size(); channel++) {
+        for (int brightness = 0; brightness <= maxBrightness; brightness++) {
+            pixelFrame[channel].r = brightness;
+            pixelFrame[channel].g = brightness;
+            pixelFrame[channel].b = brightness;
+            AcDimmer::write(pixelFrame);
+            delay(frameMillis);
+        }
+    }
+
+    ESP_LOGI(TAG, "Turning off lights slowly...");
+    for (int channel = pixelFrame.size() - 1; channel >= 0; channel--) {
+        for (int brightness = maxBrightness; brightness >= 0; brightness--) {
+            pixelFrame[channel].r = brightness;
+            pixelFrame[channel].g = brightness;
+            pixelFrame[channel].b = brightness;
+            AcDimmer::write(pixelFrame);
+            delay(frameMillis);
+        }
+    }
 }
 
 }  // namespace AcDimmer

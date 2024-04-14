@@ -2,10 +2,14 @@
 
 #include "AcDimmer.hpp"
 
-AcDimmerHandler::AcDimmerHandler(const int channels, const int zeroCrossingPin) {
-    AcDimmer::init(channels, zeroCrossingPin);
+AcDimmerHandler::AcDimmerHandler(const int pixelCount, const int zeroCrossingPin, const int TriacTaskCore) {
+    AcDimmer::init(pixelCount, zeroCrossingPin);
 }
 
 void AcDimmerHandler::write(const PixelFrame &frame) {
     AcDimmer::write(frame);
+}
+
+void AcDimmerHandler::testLights() {
+    AcDimmer::testLights();
 }

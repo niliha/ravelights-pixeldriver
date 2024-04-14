@@ -8,6 +8,7 @@
 #include "network/Network.hpp"
 #include "network/WifiCredentials.hpp"
 #include "pixel/AcDimmer.hpp"
+#include "pixel/AcDimmerHandler.hpp"
 #include "pixel/FastLedHandler.hpp"
 #include "pixel/LaserCageHandler.hpp"
 
@@ -20,8 +21,9 @@ extern constexpr std::array<int, 4> OUTPUT_PINS = {18, 19, 21, 22};
 // For each of the 4 output pins, specify how many individually addressable pixels are connected.
 // If there are no pixels connected to a specific pin, set the count to 0.
 const int PIXELS_PER_LIGHT = 144;
-OutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
-                                        6 * PIXELS_PER_LIGHT};
+// OutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
+//                                         6 * PIXELS_PER_LIGHT};
+OutputConfig pixelsPerOutputFallback = {8, 0, 0, 0};
 
 // The order of the R, G and B channel of the used LED strip
 const EOrder RGB_ORDER = EOrder::RGB;
@@ -30,54 +32,19 @@ const EOrder RGB_ORDER = EOrder::RGB;
 const uint8_t BRIGHTNESS = 200;
 
 // The instance ID used for mDNS discovery, must be without .local suffix
-std::string instanceIdFallback = "pixeldriver-box";
+// std::string instanceIdFallback = "pixeldriver-box";
 // std::string instanceIdFallback = "pixeldriver-lasercage";
+std::string instanceIdFallback = "pixeldriver-dimmer";
 
-void dimTask(void *parameters) {
-    int zeroCrossingPin = 4;
-    int channelCount = 8;
-
-    AcDimmer::init(channelCount, zeroCrossingPin);
-
-    PixelFrame pixelFrame(channelCount);
-    int maxBrightness = 20;
-    int frameMillis = 20;
-
-    while (true) {
-        ESP_LOGI(TAG, "Turning lamp on slowly...");
-        for (int channel = 0; channel < pixelFrame.size(); channel++) {
-            for (int brightness = 0; brightness <= maxBrightness; brightness++) {
-                pixelFrame[channel].r = brightness;
-                pixelFrame[channel].g = brightness;
-                pixelFrame[channel].b = brightness;
-                AcDimmer::write(pixelFrame);
-                delay(frameMillis);
-            }
-        }
-        delay(0);
-
-        ESP_LOGI(TAG, "Turning lamp off slowly...");
-        for (int channel = pixelFrame.size() - 1; channel >= 0; channel--) {
-            for (int brightness = maxBrightness; brightness >= 0; brightness--) {
-                pixelFrame[channel].r = brightness;
-                pixelFrame[channel].g = brightness;
-                pixelFrame[channel].b = brightness;
-                AcDimmer::write(pixelFrame);
-                delay(frameMillis);
-            }
-        }
-        delay(0);
-    }
-}
 extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
 
     // FIXME: Just for testing
-    xTaskCreatePinnedToCore(&dimTask, "dimTask", 4096, nullptr, 1, nullptr, 0);
-    while (true) {
-        delay(1000);
-    }
+    // xTaskCreatePinnedToCore(&dimTask, "dimTask", 4096, nullptr, 1, nullptr, 0);
+    // while (true) {
+    //     delay(1000);
+    // }
 
     // --- Persistent storage ----------------------------------------------------------------------
     // PersistentStorage::clear();
@@ -119,10 +86,14 @@ extern "C" void app_main() {
     // LaserCageHandler pixelHandler(ledControl, outputConfig.getPixelCount());
     // pixelHandler.testLasers();
 
-    FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig, BRIGHTNESS);
-    pixelHandler.testLights(PIXELS_PER_LIGHT);
+    // FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig, BRIGHTNESS);
+    // pixelHandler.testLights(PIXELS_PER_LIGHT);
+    AcDimmerHandler pixelHandler(outputConfig.getPixelCount() /* channel count*/, 4 /* zero crossing pin*/,
+                                 1 /* triac task core */);
+    pixelHandler.testLights();
 
-    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler);
+    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, 0 /* interface task core */,
+                            0 /* interface task priority */, 0 /* pixel task core */, 0 /* pixel task priority */);
     pixelDriver.start();
 
     while (true) {
