@@ -23,7 +23,7 @@ extern constexpr std::array<int, 4> OUTPUT_PINS = {18, 19, 21, 22};
 const int PIXELS_PER_LIGHT = 144;
 // OutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
 //                                         6 * PIXELS_PER_LIGHT};
-OutputConfig pixelsPerOutputFallback = {8, 0, 0, 0};
+OutputConfig pixelsPerOutputFallback = {5 * 7, 0, 0, 0};
 
 // The order of the R, G and B channel of the used LED strip
 const EOrder RGB_ORDER = EOrder::RGB;
@@ -39,12 +39,6 @@ std::string instanceIdFallback = "pixeldriver-dimmer";
 extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
-
-    // FIXME: Just for testing
-    // xTaskCreatePinnedToCore(&dimTask, "dimTask", 4096, nullptr, 1, nullptr, 0);
-    // while (true) {
-    //     delay(1000);
-    // }
 
     // --- Persistent storage ----------------------------------------------------------------------
     // PersistentStorage::clear();
@@ -90,7 +84,7 @@ extern "C" void app_main() {
     // pixelHandler.testLights(PIXELS_PER_LIGHT);
     AcDimmerHandler pixelHandler(outputConfig.getPixelCount() /* channel count*/, 4 /* zero crossing pin*/,
                                  1 /* triac task core */);
-    pixelHandler.testLights();
+     pixelHandler.testLights();
 
     PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, 0 /* interface task core */,
                             0 /* interface task priority */, 0 /* pixel task core */, 0 /* pixel task priority */);

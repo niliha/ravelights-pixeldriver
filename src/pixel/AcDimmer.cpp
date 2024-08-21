@@ -169,8 +169,8 @@ void write(const PixelFrame &frame) {
 
 void testLights() {
     PixelFrame pixelFrame(channelCount_);
-    int maxBrightness = 20;
-    int frameMillis = 10;
+    int maxBrightness = 70;
+    int frameMillis = 2;
     ESP_LOGI(TAG, "Turning on lights slowly...");
     for (int channel = 0; channel < pixelFrame.size(); channel++) {
         for (int brightness = 0; brightness <= maxBrightness; brightness++) {
