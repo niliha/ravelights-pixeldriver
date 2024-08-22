@@ -22,6 +22,7 @@ class AbstractArtnetHandler : public AbstractInterfaceHandler {
     BlockingRingBuffer<PixelFrame> &artnetQueue_;
     PixelFrame artnetFrame_;
     std::set<int> receivedUniverses_;
+    int duplicateUniverseCount_ = 0;
 
     void setChannel(uint16_t universeIndex, int channelIndex, uint8_t value);
 };

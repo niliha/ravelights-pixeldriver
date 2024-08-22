@@ -1,7 +1,7 @@
 #include "AbstractArtnetHandler.hpp"
 
-#include <esp_log.h>
 #include <cmath>
+#include <esp_log.h>
 
 static const char *TAG = "AbstractArtnetHandler";
 
@@ -16,7 +16,7 @@ void AbstractArtnetHandler::onDmxFrame(uint16_t universeIndex, uint16_t length, 
     }
 
     if (receivedUniverses_.find(universeIndex) != receivedUniverses_.end()) {
-        ESP_LOGW(TAG, "Received duplicate universe %d\n", universeIndex);
+        duplicateUniverseCount_++;
         return;
     }
 
@@ -35,6 +35,11 @@ void AbstractArtnetHandler::onDmxFrame(uint16_t universeIndex, uint16_t length, 
         artnetFrame_ = PixelFrame(PIXEL_COUNT_);
         // Reset information about received universes
         receivedUniverses_.clear();
+
+        if (duplicateUniverseCount_ > 0) {
+            ESP_LOGW(TAG, "Received %d duplicate universes since the last frame", duplicateUniverseCount_);
+            duplicateUniverseCount_ = 0;
+        }
     }
 }
 
