@@ -82,9 +82,9 @@ extern "C" void app_main() {
     // pixelHandler.testLights(PIXELS_PER_LIGHT);
     AcDimmerHandler pixelHandler(outputConfig.getPixelCount() /* channel count*/, 4 /* zero crossing pin*/,
                                  1 /* triac task core */);
-    while (true) {
-        pixelHandler.testLights();
-    }
+    // while (true) {
+    pixelHandler.testLights();
+    // }
 
     PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, 0 /* interface task core */,
                             0 /* interface task priority */, 0 /* pixel task core */, 0 /* pixel task priority */);
