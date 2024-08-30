@@ -39,6 +39,8 @@ std::vector<TriacEvent> eventsFrontBuffer_;
 SemaphoreHandle_t backBufferUpdatedSem_ = xSemaphoreCreateBinary();
 SemaphoreHandle_t backBufferMutex_ = xSemaphoreCreateMutex();
 
+std::vector<uint8_t> channelMapping_;
+
 void IRAM_ATTR onZeroCrossing() {
     // Debounce the zero crossing signal
     auto currentMicros = micros();
@@ -109,6 +111,21 @@ void init(const int channelCount, const int zeroCrossingPin, const int triacTask
     // Each channel can result in at most two events (on and off) per zero crossing interval
     eventQueue_ = xQueueCreate(channelCount * 2, sizeof(uint16_t));
 
+    // FIXME: Add proper way for custom channel mapping
+    // clang-format off
+    channelMapping_.assign({
+        0,  1,  2,  3,  4,  5,  6,  7,  
+        8,  9,  10, 11, 12, 13, 14, 15,
+        16, 17, 18, 19, 20, 21, 22, 23,
+        24, 25, 26, 27, 28, 29, 30, 31,
+        32, 33, 34, 35, 36, 37, 38, 39,
+        40, 41, 42, 43, 44, 45, 46, 47,
+        48, 49, 50, 51, 52, 53, 54, 55,
+        56, 57, 58, 59, 60, 61, 62, 63
+                               });
+    // clang-format on
+    assert(channelMapping_.size() == channelCount);
+
     pinMode(zeroCrossingPin, INPUT);
 
     // Initialize timer on the same core that will be used for the triac task
@@ -135,8 +152,9 @@ void write(const PixelFrame &frame) {
     assert(frame.size() == channelCount_);
 
     std::map<uint32_t, std::vector<std::pair<int, bool>>> channelsByDelay;
-    for (int channel = 0; channel < frame.size(); channel++) {
-        uint8_t brightness = std::max({frame[channel].r, frame[channel].g, frame[channel].b});
+    for (int channelIndex = 0; channelIndex < frame.size(); channelIndex++) {
+        uint8_t brightness = std::max({frame[channelMapping_[channelIndex]].r, frame[channelMapping_[channelIndex]].g,
+                                       frame[channelMapping_[channelIndex]].b});
 
         // Make sure TRIAC is not activated if brightness is zero
         if (brightness == 0) {
@@ -144,11 +162,11 @@ void write(const PixelFrame &frame) {
         }
 
         auto triacOnDelay = map(brightness, 0, 255, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
-        channelsByDelay[triacOnDelay].emplace_back(channel, true);
+        channelsByDelay[triacOnDelay].emplace_back(channelIndex, true);
 
         // Schedule the corresponding off event in the time slot following the on event
         auto triacOffDelay = map(brightness - 1, 0, 255, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
-        channelsByDelay[triacOffDelay].emplace_back(channel, false);
+        channelsByDelay[triacOffDelay].emplace_back(channelIndex, false);
     }
 
     // Make sure the the back buffer is not accessed by the zero crossing ISR while it is being updated here

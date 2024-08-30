@@ -21,9 +21,7 @@ extern constexpr std::array<int, 4> OUTPUT_PINS = {18, 19, 21, 22};
 // For each of the 4 output pins, specify how many individually addressable pixels are connected.
 // If there are no pixels connected to a specific pin, set the count to 0.
 const int PIXELS_PER_LIGHT = 144;
-// OutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
-//                                         6 * PIXELS_PER_LIGHT};
-OutputConfig pixelsPerOutputFallback = {5 * 7, 0, 0, 0};
+OutputConfig pixelsPerOutputFallback = {9 * 7, 0, 0, 0};
 
 // The order of the R, G and B channel of the used LED strip
 const EOrder RGB_ORDER = EOrder::RGB;
@@ -84,7 +82,9 @@ extern "C" void app_main() {
     // pixelHandler.testLights(PIXELS_PER_LIGHT);
     AcDimmerHandler pixelHandler(outputConfig.getPixelCount() /* channel count*/, 4 /* zero crossing pin*/,
                                  1 /* triac task core */);
-     pixelHandler.testLights();
+    while (true) {
+        pixelHandler.testLights();
+    }
 
     PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, 0 /* interface task core */,
                             0 /* interface task priority */, 0 /* pixel task core */, 0 /* pixel task priority */);
