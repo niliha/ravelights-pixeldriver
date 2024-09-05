@@ -7,6 +7,8 @@
 #include "interface/artnet/ArtnetWifiHandler.hpp"
 #include "network/Network.hpp"
 #include "network/WifiCredentials.hpp"
+#include "pixel/AcDimmer.hpp"
+#include "pixel/AcDimmerHandler.hpp"
 #include "pixel/FastLedHandler.hpp"
 #include "pixel/LaserCageHandler.hpp"
 
@@ -19,8 +21,7 @@ extern constexpr std::array<int, 4> OUTPUT_PINS = {18, 19, 21, 22};
 // For each of the 4 output pins, specify how many individually addressable pixels are connected.
 // If there are no pixels connected to a specific pin, set the count to 0.
 const int PIXELS_PER_LIGHT = 144;
-OutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIGHT, 5 * PIXELS_PER_LIGHT,
-                                        6 * PIXELS_PER_LIGHT};
+OutputConfig pixelsPerOutputFallback = {9 * 7, 0, 0, 0};
 
 // The order of the R, G and B channel of the used LED strip
 const EOrder RGB_ORDER = EOrder::RGB;
@@ -29,15 +30,16 @@ const EOrder RGB_ORDER = EOrder::RGB;
 const uint8_t BRIGHTNESS = 200;
 
 // The instance ID used for mDNS discovery, must be without .local suffix
-std::string instanceIdFallback = "pixeldriver-box";
+// std::string instanceIdFallback = "pixeldriver-box";
 // std::string instanceIdFallback = "pixeldriver-lasercage";
+std::string instanceIdFallback = "pixeldriver-dimmer";
 
 extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
 
     // --- Persistent storage ----------------------------------------------------------------------
-    // PersistentStorage::clear();
+    PersistentStorage::clear();
     auto outputConfig = PersistentStorage::loadOrStoreFallbackOutputConfig(pixelsPerOutputFallback);
     auto instanceId = PersistentStorage::loadOrStoreFallbackInstanceId(instanceIdFallback);
 
@@ -48,8 +50,8 @@ extern "C" void app_main() {
     }
 
     // if(!Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password)) {
-    //     ESP_LOGE(TAG, "Rebooting because setting up access point with SSID %s failed",WifiCredentials::ssid.c_str());
-    //     ESP.restart();
+    //     ESP_LOGE(TAG, "Rebooting because setting up access point with SSID %s
+    //     failed",WifiCredentials::ssid.c_str()); ESP.restart();
     // }
 
     if (MDNS.begin(instanceId.c_str())) {
@@ -76,10 +78,16 @@ extern "C" void app_main() {
     // LaserCageHandler pixelHandler(ledControl, outputConfig.getPixelCount());
     // pixelHandler.testLasers();
 
-    FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig, BRIGHTNESS);
-    pixelHandler.testLights(PIXELS_PER_LIGHT);
+    // FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig, BRIGHTNESS);
+    // pixelHandler.testLights(PIXELS_PER_LIGHT);
+    AcDimmerHandler pixelHandler(outputConfig.getPixelCount() /* channel count*/, 4 /* zero crossing pin*/,
+                                 1 /* triac task core */);
+    // while (true) {
+    pixelHandler.testLights();
+    // }
 
-    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler);
+    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, 0 /* interface task core */,
+                            0 /* interface task priority */, 0 /* pixel task core */, 0 /* pixel task priority */);
     pixelDriver.start();
 
     while (true) {
