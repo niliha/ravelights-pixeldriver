@@ -1,6 +1,6 @@
 #include "AcDimmerHandler.hpp"
 
-#include "AcDimmer.hpp"
+#include "dimmer/AcDimmer.hpp"
 
 AcDimmerHandler::AcDimmerHandler(const int pixelCount, const int zeroCrossingPin, const int TriacTaskCore) {
     AcDimmer::init(pixelCount, zeroCrossingPin);
