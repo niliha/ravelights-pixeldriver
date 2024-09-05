@@ -68,13 +68,12 @@ extern "C" void app_main() {
     auto artnetWifi = std::make_shared<ArtnetWifiHandler>(artnetQueue, outputConfig.getPixelCount());
     interfaces.push_back(artnetWifi);
 
-    // auto artnetSerial = std::make_shared<ArtnetSerialHandler>(artnetQueue, outputConfig.getPixelCount());
-    // interfaces.push_back(artnetSerial);
-
     // --- Pixel handler ---------------------------------------------------------------------------
     // LedControl ledControl(7, 6, 5);
     // LaserCageHandler pixelHandler(ledControl, outputConfig.getPixelCount());
-    // pixelHandler.testLasers();
+
+    // AcDimmerHandler pixelHandler(outputConfig.getPixelCount() /* channel count*/, 4 /* zero crossing pin*/,
+    //                              1 /* triac task core */);
 
     FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig, BRIGHTNESS);
     pixelHandler.testLights(PIXELS_PER_LIGHT);
