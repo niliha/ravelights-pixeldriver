@@ -39,7 +39,7 @@ extern "C" void app_main() {
     Serial.begin(115200);
 
     // --- Persistent storage ----------------------------------------------------------------------
-    // PersistentStorage::clear();
+    PersistentStorage::clear();
     auto outputConfig = PersistentStorage::loadOrStoreFallbackOutputConfig(pixelsPerOutputFallback);
     auto instanceId = PersistentStorage::loadOrStoreFallbackInstanceId(instanceIdFallback);
 
