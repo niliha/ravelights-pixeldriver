@@ -2,25 +2,31 @@
 
 static const char *TAG = "LaserCageHandler";
 
-LaserCageHandler::LaserCageHandler(LedControl &ledControl, int laserCount)
-    : laserCount_(laserCount), ledControl_(ledControl) {
-    ledControl_.shutdown(0, false);
-    ledControl.setIntensity(0, 15);
-    ledControl_.clearDisplay(0);
+LaserCageHandler::LaserCageHandler(int laserCount) : laserCount_(laserCount) {
+    Tlc.init(0);
 }
 
 void LaserCageHandler::write(const PixelFrame &frame) {
     assert(frame.size() == laserCount_);
 
+    Tlc.clear();
+
     for (int i = 0; i < frame.size(); i++) {
         bool isOn = frame[i].r + frame[i].g + frame[i].b > 0;
-        int row = i / 8;
-        int column = i % 8;
-        ledControl_.setLed(0, row, column, isOn);
+        if (isOn) {
+            Tlc.set(i, 4095);
+        }
     }
+
+    Tlc.update();
 }
 
 void LaserCageHandler::testLasers() {
+    for (int i = 0; i < laserCount_; i++) {
+        Tlc.set(i, 4095);
+    }
+    Tlc.update();
+    /*
     ESP_LOGI(TAG, "Testing Lasers...");
     ledControl_.clearDisplay(0);
 
@@ -31,4 +37,5 @@ void LaserCageHandler::testLasers() {
         delay(100);
         ledControl_.clearDisplay(0);
     }
+    */
 }

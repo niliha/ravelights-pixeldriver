@@ -2,18 +2,16 @@
 
 #include "AbstractPixelHandler.hpp"
 
-#include  <LedControl.h>
+#include <Tlc5940.h>
 
 #include "PixelFrame.hpp"
 
-class LaserCageHandler : public AbstractPixelHandler{
+class LaserCageHandler : public AbstractPixelHandler {
  public:
-    LaserCageHandler(LedControl &ledControl, int laserCount);
+    LaserCageHandler(int laserCount);
     virtual void write(const PixelFrame &frame) override;
     void testLasers();
 
  private:
     const int laserCount_;
-
-    LedControl &ledControl_;
 };

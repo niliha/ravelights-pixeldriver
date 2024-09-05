@@ -69,8 +69,7 @@ extern "C" void app_main() {
     interfaces.push_back(artnetWifi);
 
     // --- Pixel handler ---------------------------------------------------------------------------
-    // LedControl ledControl(7, 6, 5);
-    // LaserCageHandler pixelHandler(ledControl, outputConfig.getPixelCount());
+    // LaserCageHandler pixelHandler(outputConfig.getPixelCount());
 
     // AcDimmerHandler pixelHandler(outputConfig.getPixelCount() /* channel count*/, 4 /* zero crossing pin*/,
     //                              1 /* triac task core */);
