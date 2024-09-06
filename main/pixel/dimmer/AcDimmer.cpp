@@ -49,7 +49,6 @@ void IRAM_ATTR onZeroCrossing() {
     }
 
     // Reset zero crossing interval
-    timerAlarmDisable(eventTimer_);
     timerRestart(eventTimer_);
     lastZeroCrossingMicros_ = currentMicros;
     currenEventIndex_ = 0;
@@ -65,8 +64,7 @@ void IRAM_ATTR onZeroCrossing() {
     // Schedule the first TRIAC event if write() has been called yet.
     // Subsequent events will be scheduled by the timer ISR
     if (!eventsFrontBuffer_.empty()) {
-        timerAlarmWrite(eventTimer_, eventsFrontBuffer_[0].delayMicros, false);
-        timerAlarmEnable(eventTimer_);
+        timerAlarm(eventTimer_, eventsFrontBuffer_[0].delayMicros, false, 0);
     }
 }
 
@@ -80,8 +78,7 @@ void IRAM_ATTR onTimerAlarm() {
         auto nextDelayMicros = eventsFrontBuffer_[currenEventIndex_ + 1].delayMicros;
         currenEventIndex_++;
 
-        timerAlarmWrite(eventTimer_, nextDelayMicros, false);
-        timerAlarmEnable(eventTimer_);
+        timerAlarm(eventTimer_, nextDelayMicros, false, 0);
     }
 
     // Immediately switch to the triac task if it is currently waiting for a new event
@@ -132,9 +129,9 @@ void init(const int channelCount, const int zeroCrossingPin, const int triacTask
     // Initialize timer on the same core that will be used for the triac task
     xTaskCreatePinnedToCore(
         [](void *parameters) {
-            eventTimer_ = timerBegin(0, 80, true);
+            eventTimer_ = timerBegin(1 * 1000 * 1000 /* 1 Mhz */);
             // FIXME: Once arduino-esp32 is v3.0.0 is released, timerAttachInterruptWithArg() can be used.
-            timerAttachInterrupt(eventTimer_, &onTimerAlarm, true);
+            timerAttachInterrupt(eventTimer_, &onTimerAlarm);
             attachInterrupt(zeroCrossingPin_, &onZeroCrossing, RISING);
 
             ESP_LOGI(TAG, "AcDimmer initialized on core %d with %d channels and zero crossing pin %d", xPortGetCoreID(),

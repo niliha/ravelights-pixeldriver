@@ -16,7 +16,7 @@ OutputConfig loadOrStoreFallbackOutputConfig(const OutputConfig &fallbackOutputC
     std::optional<OutputConfig> outputConfigFromFlash = loadOutputConfig();
     const auto &outputConfig = outputConfigFromFlash.value_or(fallbackOutputConfig);
 
-    ESP_LOGI(TAG, "Using pixels per output config from %s (%d, %d, %d, %d)",
+    ESP_LOGI(TAG, "Using pixels per output config from %s (%lu, %lu, %lu, %lu)",
              outputConfigFromFlash ? "flash" : "fallback", outputConfig[0], outputConfig[1], outputConfig[2],
              outputConfig[3]);
 
@@ -53,8 +53,8 @@ bool storeOutputConfig(const OutputConfig &newOutputConfig) {
         return false;
     }
 
-    ESP_LOGI(TAG, "Wrote pixels per output config to flash (%d, %d, %d, %d)", newOutputConfig[0], newOutputConfig[1],
-             newOutputConfig[2], newOutputConfig[3]);
+    ESP_LOGI(TAG, "Wrote pixels per output config to flash (%lu, %lu, %lu, %lu)", newOutputConfig[0],
+             newOutputConfig[1], newOutputConfig[2], newOutputConfig[3]);
     return true;
 }
 

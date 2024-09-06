@@ -1,10 +1,10 @@
-#include "Network.hpp"
+#include "NetworkUtil.hpp"
 
 #include "WiFi.h"
 
 static const char *TAG = "Network";
 
-namespace Network {
+namespace NetworkUtil {
 bool connectToWifi(std::string ssid, std::string password) {
     ESP_LOGI(TAG, "Connecting to WiFi with SSID %s...", ssid.c_str());
     WiFi.begin(ssid.c_str(), password.c_str());
@@ -36,4 +36,4 @@ bool initWifiAccessPoint(std::string ssid, std::string password) {
     return false;
 }
 
-}  // namespace Network
+}  // namespace NetworkUtil

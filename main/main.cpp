@@ -5,7 +5,7 @@
 #include "interface/RestApi.hpp"
 #include "interface/artnet/ArtnetSerialHandler.hpp"
 #include "interface/artnet/ArtnetWifiHandler.hpp"
-#include "network/Network.hpp"
+#include "network/NetworkUtil.hpp"
 #include "network/WifiCredentials.hpp"
 #include "pixel/FastLedHandler.hpp"
 #include "pixel/LaserCageHandler.hpp"
@@ -36,13 +36,15 @@ extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
 
+    esp_log_level_set("wifi", ESP_LOG_WARN);
+
     // --- Persistent storage ----------------------------------------------------------------------
     // PersistentStorage::clear();
     auto outputConfig = PersistentStorage::loadOrStoreFallbackOutputConfig(pixelsPerOutputFallback);
     auto instanceId = PersistentStorage::loadOrStoreFallbackInstanceId(instanceIdFallback);
 
     // --- Network ---------------------------------------------------------------------------------
-    if (!Network::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
+    if (!NetworkUtil::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
         ESP_LOGE(TAG, "Rebooting because connecting to wifi with SSID %s failed", WifiCredentials::ssid.c_str());
         ESP.restart();
     }
