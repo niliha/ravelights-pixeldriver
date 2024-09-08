@@ -15,7 +15,9 @@ This is the low-level counterpart to the [ravelights](https://github.com/danuo/r
 
 # Getting started
 
-A [PlatformIO installation](https://platformio.org/install) is required, and optionally an IDE integration, e.g. for [VSCode](https://platformio.org/install/ide?install=vscode).  
-Using PlatformIO, you can build the project and upload it to an ESP32.
+* Clone this repository ``--recursive``ly.
+* Install ESP-IDF extension for Visual Studio Code and install ESP-IDF **v5.1.4**.
+See [here](https://github.com/espressif/vscode-esp-idf-extension/blob/master/docs/tutorial/install.md) for further instructions.
 
-See `src/main.cpp` for usage and adapt the config to your setup.
+See the `main/examples` directory for usage examples.
+A specific example can be selected for compilation by adapting `main/CmakeLists.txt`.
