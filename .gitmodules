@@ -1,0 +1,15 @@
+[submodule "components/FastLED"]
+	path = components/FastLED
+	url = https://github.com/FastLED/FastLED.git
+[submodule "components/ArtnetWifi"]
+	path = components/ArtnetWifi
+	url = https://github.com/niliha/ArtnetWifi.git
+[submodule "components/arduino"]
+	path = components/arduino
+	url = https://github.com/espressif/arduino-esp32.git
+[submodule "components/tlc5940"]
+	path = components/tlc5940
+	url = https://github.com/niliha/tlc5940-idf.git
+[submodule "components/ArduinoJson"]
+	path = components/ArduinoJson
+	url = https://github.com/bblanchon/ArduinoJson.git

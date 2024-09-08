@@ -3,12 +3,10 @@
 #include "PixelDriver.hpp"
 #include "config/PersistentStorage.hpp"
 #include "interface/RestApi.hpp"
-#include "interface/artnet/ArtnetSerialHandler.hpp"
 #include "interface/artnet/ArtnetWifiHandler.hpp"
-#include "network/Network.hpp"
+#include "network/NetworkUtil.hpp"
 #include "network/WifiCredentials.hpp"
 #include "pixel/FastLedHandler.hpp"
-#include "pixel/LaserCageHandler.hpp"
 
 static const char *TAG = "main";
 
@@ -26,15 +24,17 @@ OutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIG
 const EOrder RGB_ORDER = EOrder::RGB;
 
 // The brightness scaling factor. 0 = minimum brightness, 255 = maximum brightness
-const uint8_t BRIGHTNESS = 200;
+const uint8_t BRIGHTNESS = 127;
 
 // The instance ID used for mDNS discovery, must be without .local suffix
-std::string instanceIdFallback = "pixeldriver-box";
-// std::string instanceIdFallback = "pixeldriver-lasercage";
+std::string instanceIdFallback = "pixeldriver-box-main";
+// std::string instanceIdFallback = "pixeldriver-box-second";
 
 extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
+
+    esp_log_level_set("wifi", ESP_LOG_WARN);
 
     // --- Persistent storage ----------------------------------------------------------------------
     // PersistentStorage::clear();
@@ -42,19 +42,15 @@ extern "C" void app_main() {
     auto instanceId = PersistentStorage::loadOrStoreFallbackInstanceId(instanceIdFallback);
 
     // --- Network ---------------------------------------------------------------------------------
-    if (!Network::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
+    if (!NetworkUtil::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
         ESP_LOGE(TAG, "Rebooting because connecting to wifi with SSID %s failed", WifiCredentials::ssid.c_str());
         ESP.restart();
     }
 
-    // if(!Network::initWifiAccessPoint(WifiCredentials::ssid, WifiCredentials::password)) {
-    //     ESP_LOGE(TAG, "Rebooting because setting up access point with SSID %s failed",WifiCredentials::ssid.c_str());
-    //     ESP.restart();
-    // }
-
     if (MDNS.begin(instanceId.c_str())) {
         ESP_LOGI(TAG, "Started mDNS responder for instance id %s", instanceId.c_str());
     } else {
+        ESP_LOGE(TAG, "Rebooting because starting mDNS responder for instance id %s failed", instanceId.c_str());
         ESP.restart();
     }
 
@@ -69,14 +65,10 @@ extern "C" void app_main() {
     interfaces.push_back(artnetWifi);
 
     // --- Pixel handler ---------------------------------------------------------------------------
-    // LaserCageHandler pixelHandler(outputConfig.getPixelCount());
-
-    // AcDimmerHandler pixelHandler(outputConfig.getPixelCount() /* channel count*/, 4 /* zero crossing pin*/,
-    //                              1 /* triac task core */);
-
     FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig, BRIGHTNESS);
     pixelHandler.testLights(PIXELS_PER_LIGHT);
 
+    // --- Pixel driver ----------------------------------------------------------------------------
     PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler);
     pixelDriver.start();
 

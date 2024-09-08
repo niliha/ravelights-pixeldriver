@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace Network {
+namespace NetworkUtil {
 bool connectToWifi(std::string ssid, std::string password);
 bool initWifiAccessPoint(std::string ssid, std::string password);
-}  // namespace Network
+}  // namespace NetworkUtil
