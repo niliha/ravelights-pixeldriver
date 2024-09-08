@@ -7,9 +7,10 @@
 
 class AcDimmerHandler : public AbstractPixelHandler {
  public:
-    AcDimmerHandler(const int channelCount, const int zeroCrossingPin, const int triacTaskCore);
     AcDimmerHandler(const int channelCount, const int zeroCrossingPin, const int triacTaskCore,
-                    const std::vector<uint8_t> &customChannelMapping);
+                    const uint8_t brightness = 255);
+    AcDimmerHandler(const int channelCount, const int zeroCrossingPin, const int triacTaskCore,
+                    const uint8_t brightness, const std::vector<uint8_t> &customChannelMapping);
     virtual void write(const PixelFrame &frame) override;
 
     void testLights();
@@ -26,6 +27,7 @@ class AcDimmerHandler : public AbstractPixelHandler {
 
     int channelCount_;
     int zeroCrossingPin_;
+    uint8_t brightness_;
     MultiMcp23s17 portExpander_;
 
     hw_timer_t *eventTimer_;

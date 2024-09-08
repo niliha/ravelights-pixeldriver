@@ -10,7 +10,6 @@ void LaserCageHandler::write(const PixelFrame &frame) {
     assert(frame.size() == laserCount_);
 
     Tlc.clear();
-
     for (int i = 0; i < frame.size(); i++) {
         bool isOn = frame[i].r + frame[i].g + frame[i].b > 0;
         if (isOn) {
@@ -22,20 +21,12 @@ void LaserCageHandler::write(const PixelFrame &frame) {
 }
 
 void LaserCageHandler::testLasers() {
-    for (int i = 0; i < laserCount_; i++) {
-        Tlc.set(i, 4095);
-    }
-    Tlc.update();
-    /*
     ESP_LOGI(TAG, "Testing Lasers...");
-    ledControl_.clearDisplay(0);
 
     for (int i = 0; i < laserCount_; i++) {
-        int row = i / 8;
-        int column = i % 8;
-        ledControl_.setLed(0, row, column, true);
+        Tlc.clear();
+        Tlc.set(i, 4095);
+        Tlc.update();
         delay(100);
-        ledControl_.clearDisplay(0);
     }
-    */
 }

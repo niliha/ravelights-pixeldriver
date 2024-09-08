@@ -1,5 +1,10 @@
+# Select the example to compile
+set(example_main "examples/ledstrip/main.cpp")
+# set(example_main "examples/dimmer/main.cpp")
+# set(example_main "examples/laser/main.cpp")
+
 set(srcs
-  main.cpp
+  ${example_main}
   FpsLogger.cpp
   PixelDriver.cpp
   config/OutputConfig.cpp

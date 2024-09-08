@@ -6,13 +6,15 @@
 
 static const char *TAG = "AcDimmerHandler";
 
-AcDimmerHandler::AcDimmerHandler(const int channelCount, const int zeroCrossingPin, const int TriacTaskCore)
-    : AcDimmerHandler(channelCount, zeroCrossingPin, TriacTaskCore, createIdentityChannelMapping(channelCount)) {
+AcDimmerHandler::AcDimmerHandler(const int channelCount, const int zeroCrossingPin, const int TriacTaskCore,
+                                 const uint8_t brightness)
+    : AcDimmerHandler(channelCount, zeroCrossingPin, TriacTaskCore, brightness,
+                      createIdentityChannelMapping(channelCount)) {
 }
 
 AcDimmerHandler::AcDimmerHandler(const int channelCount, const int zeroCrossingPin, const int triacTaskCore,
-                                 const std::vector<uint8_t> &customChannelMapping)
-    : channelCount_(channelCount), zeroCrossingPin_(zeroCrossingPin),
+                                 const uint8_t brightness, const std::vector<uint8_t> &customChannelMapping)
+    : channelCount_(channelCount), zeroCrossingPin_(zeroCrossingPin), brightness_(brightness),
       eventIndexQueue_(xQueueCreate(3, sizeof(uint16_t))), channelMapping_(customChannelMapping) {
     assert(channelMapping_.size() == channelCount_);
 
@@ -59,6 +61,7 @@ void AcDimmerHandler::write(const PixelFrame &frame) {
     for (int channelIndex = 0; channelIndex < frame.size(); channelIndex++) {
         uint8_t brightness = std::max({frame[channelMapping_[channelIndex]].r, frame[channelMapping_[channelIndex]].g,
                                        frame[channelMapping_[channelIndex]].b});
+        brightness = map(brightness, 0, 255, 0, brightness_);
 
         // Make sure TRIAC is not activated if brightness is zero
         if (brightness == 0) {
