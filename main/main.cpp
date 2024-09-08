@@ -37,6 +37,7 @@ extern "C" void app_main() {
     Serial.begin(115200);
 
     esp_log_level_set("wifi", ESP_LOG_WARN);
+    esp_log_level_set("gpio", ESP_LOG_WARN);
 
     // --- Persistent storage ----------------------------------------------------------------------
     // PersistentStorage::clear();

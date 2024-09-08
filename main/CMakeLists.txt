@@ -10,9 +10,8 @@ set(srcs
   interface/artnet/ArtnetSerialHandler.cpp
   interface/artnet/ArtnetWifiHandler.cpp
   network/NetworkUtil.cpp
-  pixel/AcDimmerHandler.cpp
   pixel/LaserCageHandler.cpp
-  pixel/dimmer/AcDimmer.cpp
+  pixel/dimmer/AcDimmerHandler.cpp
   pixel/dimmer/MultiMcp23s17.cpp
 )
 
