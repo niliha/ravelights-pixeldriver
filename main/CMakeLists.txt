@@ -17,7 +17,7 @@ set(srcs
   network/NetworkUtil.cpp
   pixel/LaserCageHandler.cpp
   pixel/dimmer/AcDimmerHandler.cpp
-  pixel/dimmer/MultiMcp23s17.cpp
+  pixel/dimmer/Mcp23s17TriacDriver.cpp
 )
 
 idf_component_register(SRCS ${srcs} INCLUDE_DIRS ".")  
