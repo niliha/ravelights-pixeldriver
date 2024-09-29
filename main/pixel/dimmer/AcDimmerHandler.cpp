@@ -6,17 +6,10 @@
 
 static const char *TAG = "AcDimmerHandler";
 
-AcDimmerHandler::AcDimmerHandler(const int channelCount, const int zeroCrossingPin, const int TriacTaskCore,
-                                 const uint8_t brightness)
-    : AcDimmerHandler(channelCount, zeroCrossingPin, TriacTaskCore, brightness,
-                      createIdentityChannelMapping(channelCount)) {
-}
-
 AcDimmerHandler::AcDimmerHandler(const int channelCount, const int zeroCrossingPin, const int triacTaskCore,
-                                 const uint8_t brightness, const std::vector<uint8_t> &customChannelMapping)
-    : channelCount_(channelCount), zeroCrossingPin_(zeroCrossingPin), brightness_(brightness),
-      eventIndexQueue_(xQueueCreate(3, sizeof(uint16_t))), channelMapping_(customChannelMapping) {
-    assert(channelMapping_.size() == channelCount_);
+                                 AbstractTriacDriver &triacDriver, const uint8_t maxBrightness)
+    : CHANNEL_COUNT_(channelCount), MAX_BRIGHTNESS_(maxBrightness), zeroCrossingPin_(zeroCrossingPin),
+      triacDriver_(triacDriver), eventIndexQueue_(xQueueCreate(3, sizeof(uint16_t))) {
 
     // Initialize timer and zero crossing interrupt on the same core that will be used for the triac task
     xTaskCreatePinnedToCore(
@@ -33,7 +26,7 @@ AcDimmerHandler::AcDimmerHandler(const int channelCount, const int zeroCrossingP
                             /* core */ triacTaskCore);
 
     ESP_LOGI(TAG, "AcDimmerHandler initialized on core %d with %d channels and zero crossing pin %d", xPortGetCoreID(),
-             channelCount_, zeroCrossingPin_);
+             CHANNEL_COUNT_, zeroCrossingPin_);
 }
 
 std::vector<uint8_t> AcDimmerHandler::createIdentityChannelMapping(const int channelCount) const {
@@ -55,25 +48,25 @@ void AcDimmerHandler::setupZeroCrossing() {
 }
 
 void AcDimmerHandler::write(const PixelFrame &frame) {
-    assert(frame.size() == channelCount_);
+    assert(frame.size() == CHANNEL_COUNT_);
 
     std::map<uint32_t, std::vector<std::pair<int, bool>>> channelsByDelay;
     for (int channelIndex = 0; channelIndex < frame.size(); channelIndex++) {
-        uint8_t brightness = std::max({frame[channelMapping_[channelIndex]].r, frame[channelMapping_[channelIndex]].g,
-                                       frame[channelMapping_[channelIndex]].b});
-        brightness = map(brightness, 0, 255, 0, brightness_);
+        auto pixel = frame[channelIndex];
+        uint8_t brightness = std::min(std::max({pixel.r, pixel.g, pixel.b}), MAX_BRIGHTNESS_);
 
         // Make sure TRIAC is not activated if brightness is zero
         if (brightness == 0) {
             continue;
         }
 
-        auto triacOnDelay = map(brightness, 0, 255, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
+        // Map the brightness inversely to the delay to turn the TRIAC on,
+        // i.e. the higher the brightness, the shorter the delay to turn the TRIAC on and vice versa
+        auto triacOnDelay = map(brightness, 0, UINT8_MAX, MAX_TRIAC_ON_DELAY_MICROS_, MIN_TRIAC_ON_DELAY_MICROS_);
         channelsByDelay[triacOnDelay].emplace_back(channelIndex, true);
 
-        // Schedule the corresponding off event in the time slot following the on event
-        auto triacOffDelay = map(brightness - 1, 0, 255, MAX_TRIAC_EVENT_DELAY_MICROS_, MIN_TRIAC_EVENT_DELAY_MICROS_);
-        channelsByDelay[triacOffDelay].emplace_back(channelIndex, false);
+        // Keep the TRIAC signal on until the next zero crossing
+        channelsByDelay[MAX_TRIAC_OFF_DELAY_MICROS_].emplace_back(channelIndex, false);
     }
 
     // Make sure the the back buffer is not accessed by the zero crossing ISR while it is being updated here
@@ -92,8 +85,8 @@ void AcDimmerHandler::write(const PixelFrame &frame) {
     xSemaphoreGive(backBufferUpdatedSem_);
 }
 
-void AcDimmerHandler::testLights() {
-    PixelFrame pixelFrame(channelCount_);
+void AcDimmerHandler::testLightsSequentially() {
+    PixelFrame pixelFrame(CHANNEL_COUNT_);
     int maxBrightness = 70;
     int frameMillis = 2;
     ESP_LOGI(TAG, "Turning on lights slowly...");
@@ -116,6 +109,33 @@ void AcDimmerHandler::testLights() {
             write(pixelFrame);
             delay(frameMillis);
         }
+    }
+}
+
+void AcDimmerHandler::testLightsSynchronously() {
+    PixelFrame pixelFrame(CHANNEL_COUNT_);
+    int maxBrightness = 70;
+    int frameMillis = 50;
+    ESP_LOGI(TAG, "Turning on lights slowly...");
+    for (int brightness = 0; brightness <= maxBrightness; brightness++) {
+        for (int channel = 0; channel < pixelFrame.size(); channel++) {
+            pixelFrame[channel].r = brightness;
+            pixelFrame[channel].g = brightness;
+            pixelFrame[channel].b = brightness;
+        }
+        write(pixelFrame);
+        delay(frameMillis);
+    }
+
+    ESP_LOGI(TAG, "Turning off lights slowly...");
+    for (int brightness = maxBrightness; brightness >= 0; brightness--) {
+        for (int channel = 0; channel < pixelFrame.size(); channel++) {
+            pixelFrame[channel].r = brightness;
+            pixelFrame[channel].g = brightness;
+            pixelFrame[channel].b = brightness;
+        }
+        write(pixelFrame);
+        delay(frameMillis);
     }
 }
 
@@ -173,9 +193,9 @@ void IRAM_ATTR AcDimmerHandler::triacTask() {
         xQueueReceive(eventIndexQueue_, &eventIndex, portMAX_DELAY);
 
         for (const auto &[channel, turnOn] : eventsFrontBuffer_[eventIndex].channels) {
-            portExpander_.stageChannel(channel, turnOn);
+            triacDriver_.stageChannel(channel, turnOn);
         }
 
-        portExpander_.commitStagedChannels();
+        triacDriver_.commitStagedChannels();
     }
 }

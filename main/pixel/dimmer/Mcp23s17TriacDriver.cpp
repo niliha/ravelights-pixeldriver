@@ -1,10 +1,26 @@
-#include "MultiMcp23s17.hpp"
+#include "Mcp23s17TriacDriver.hpp"
 
+#include <algorithm>
+#include <esp_log.h>
 #include <string.h>
 
-MultiMcp23s17::MultiMcp23s17(int spi2MosiPin, int spi2SclkPin, int spi2CsPin, int spi3MosiPin, int spi3SclkPin,
-                             int spi3CsPin, unsigned int clockFrequency) {
+static const char *TAG = "Mcp23s17TriacDriver";
+
+Mcp23s17TriacDriver::Mcp23s17TriacDriver(std::optional<std::vector<uint8_t>> customChannelMapping, int spi2MosiPin,
+                                         int spi2SclkPin, int spi2CsPin, int spi3MosiPin, int spi3SclkPin,
+                                         int spi3CsPin, unsigned int clockFrequency)
+    : customChannelMapping_(customChannelMapping) {
     assert(clockFrequency <= MAX_CLOCK_FREQUENCY_HZ && "MCP23S17 clock frequency must not exceed 10 MHz");
+
+    if (customChannelMapping_) {
+        assert(customChannelMapping_->size() == MAX_CHANNEL_COUNT &&
+               "Custom channel mapping must contain exactly 64 entries");
+
+        if (*std::max_element(customChannelMapping_->begin(), customChannelMapping_->end()) >= MAX_CHANNEL_COUNT) {
+            ESP_LOGE(TAG, "Custom channel mapping contains invalid channel index");
+            abort();
+        }
+    }
 
     spi_bus_config_t spi2BusConfig = {.mosi_io_num = spi2MosiPin,
                                       .miso_io_num = -1,  // MISO is not needed for write operations
@@ -61,7 +77,7 @@ MultiMcp23s17::MultiMcp23s17(int spi2MosiPin, int spi2SclkPin, int spi2CsPin, in
     configureAllPinsAsOutputs(spi3DeviceHandle_, 1);
 }
 
-void MultiMcp23s17::enableHardwareAddressing(spi_device_handle_t spiDeviceHandle) {
+void Mcp23s17TriacDriver::enableHardwareAddressing(spi_device_handle_t spiDeviceHandle) {
     // Enable hardware addressing for all MCP23S17 on this bus.
     writeRegister8Bit(spiDeviceHandle, 0, IOCON_REGISTER, 1 << IOCON_HAEN_BIT);
 
@@ -71,15 +87,19 @@ void MultiMcp23s17::enableHardwareAddressing(spi_device_handle_t spiDeviceHandle
     writeRegister8Bit(spiDeviceHandle, 7, IOCON_REGISTER, 1 << IOCON_HAEN_BIT);
 }
 
-void MultiMcp23s17::configureAllPinsAsOutputs(spi_device_handle_t spiDeviceHandle, uint8_t deviceId) {
+void Mcp23s17TriacDriver::configureAllPinsAsOutputs(spi_device_handle_t spiDeviceHandle, uint8_t deviceId) {
     // Configure all 16 pins as outputs
     // 0 -> output
     // 1 -> input
     writeRegister16Bit(spiDeviceHandle, deviceId, IODIR_REGISTER, 0x0000);
 }
 
-void IRAM_ATTR MultiMcp23s17::stageChannel(uint16_t channel, bool turnOn) {
-    assert(channel < 64 && "Channel must be in the range [0, 63]");
+void IRAM_ATTR Mcp23s17TriacDriver::stageChannel(uint16_t channel, bool turnOn) {
+    assert(channel < MAX_CHANNEL_COUNT && "Channel must be in the range [0, 63]");
+
+    if (customChannelMapping_) {
+        channel = (*customChannelMapping_)[channel];
+    }
 
     int deviceIndex = channel / 16;
     int channelIndex = channel % 16;
@@ -93,7 +113,7 @@ void IRAM_ATTR MultiMcp23s17::stageChannel(uint16_t channel, bool turnOn) {
     isDeviceStaged_[deviceIndex] = true;
 }
 
-void IRAM_ATTR MultiMcp23s17::commitStagedChannels() {
+void IRAM_ATTR Mcp23s17TriacDriver::commitStagedChannels() {
     // By utilizing both SPI buses, two MCP23S17 can be written to in parallel.
     // Note: Writing to all 4 MCP23S17 was measured to take around 30 µs
     // at 10 Mhz SPI and 240 MHz CPU clock frequency
@@ -137,13 +157,13 @@ void IRAM_ATTR MultiMcp23s17::commitStagedChannels() {
     std::fill(isDeviceStaged_.begin(), isDeviceStaged_.end(), false);
 }
 
-uint8_t MultiMcp23s17::getDeviceAddress(uint8_t deviceId) {
+uint8_t Mcp23s17TriacDriver::getDeviceAddress(uint8_t deviceId) {
     assert(deviceId <= 7 && "Device ID must not exceed 7 (0b111)");
     return DEVICE_BASE_ADDRESS | deviceId;
 }
 
-void MultiMcp23s17::prepareWriteTransaction16Bit(spi_transaction_t &transaction, uint8_t deviceId,
-                                                 uint8_t registerAddress, uint16_t value) {
+void Mcp23s17TriacDriver::prepareWriteTransaction16Bit(spi_transaction_t &transaction, uint8_t deviceId,
+                                                       uint8_t registerAddress, uint16_t value) {
     uint8_t deviceAddress = getDeviceAddress(deviceId);
 
     memset(&transaction, 0, sizeof(spi_transaction_t));
@@ -158,8 +178,8 @@ void MultiMcp23s17::prepareWriteTransaction16Bit(spi_transaction_t &transaction,
     transaction.flags = SPI_TRANS_USE_TXDATA;
 }
 
-void MultiMcp23s17::writeRegister8Bit(spi_device_handle_t spiDeviceHandle, uint8_t deviceId, uint8_t registerAddress,
-                                      uint8_t value) {
+void Mcp23s17TriacDriver::writeRegister8Bit(spi_device_handle_t spiDeviceHandle, uint8_t deviceId,
+                                            uint8_t registerAddress, uint8_t value) {
     uint8_t deviceAddress = getDeviceAddress(deviceId);
 
     spi_transaction_t transaction;
@@ -177,8 +197,8 @@ void MultiMcp23s17::writeRegister8Bit(spi_device_handle_t spiDeviceHandle, uint8
     ESP_ERROR_CHECK(spi_device_polling_transmit(spiDeviceHandle, &transaction));
 }
 
-void MultiMcp23s17::writeRegister16Bit(spi_device_handle_t spiDeviceHandle, uint8_t deviceId, uint8_t registerAddress,
-                                       uint16_t value) {
+void Mcp23s17TriacDriver::writeRegister16Bit(spi_device_handle_t spiDeviceHandle, uint8_t deviceId,
+                                             uint8_t registerAddress, uint16_t value) {
     spi_transaction_t transaction;
     prepareWriteTransaction16Bit(transaction, deviceId, registerAddress, value);
 
