@@ -11,8 +11,7 @@ class AcDimmerHandler : public AbstractPixelHandler {
                     AbstractTriacDriver &triacDriver, const uint8_t maxBrightness = 255);
     virtual void write(const PixelFrame &frame) override;
 
-    void testLightsSequentially();
-    void testLightsSynchronously();
+    void testLights();
 
  private:
     // For 230V/50Hz, the zero crossing period is 10 ms.
