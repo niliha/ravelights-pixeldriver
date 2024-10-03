@@ -6,18 +6,15 @@
 
 static const char *TAG = "Mcp23s17TriacDriver";
 
-Mcp23s17TriacDriver::Mcp23s17TriacDriver(std::optional<std::vector<uint8_t>> customChannelMapping, int spi2MosiPin,
-                                         int spi2SclkPin, int spi2CsPin, int spi3MosiPin, int spi3SclkPin,
-                                         int spi3CsPin, unsigned int clockFrequency)
+Mcp23s17TriacDriver::Mcp23s17TriacDriver(std::optional<std::array<uint8_t, MAX_CHANNEL_COUNT>> customChannelMapping,
+                                         int spi2MosiPin, int spi2SclkPin, int spi2CsPin, int spi3MosiPin,
+                                         int spi3SclkPin, int spi3CsPin, unsigned int clockFrequency)
     : customChannelMapping_(customChannelMapping) {
     assert(clockFrequency <= MAX_CLOCK_FREQUENCY_HZ && "MCP23S17 clock frequency must not exceed 10 MHz");
 
     if (customChannelMapping_) {
-        assert(customChannelMapping_->size() == MAX_CHANNEL_COUNT &&
-               "Custom channel mapping must contain exactly 64 entries");
-
         if (*std::max_element(customChannelMapping_->begin(), customChannelMapping_->end()) >= MAX_CHANNEL_COUNT) {
-            ESP_LOGE(TAG, "Custom channel mapping contains invalid channel index");
+            ESP_LOGE(TAG, "Custom channel mapping contains invalid channel index (>= %d)", MAX_CHANNEL_COUNT);
             abort();
         }
     }

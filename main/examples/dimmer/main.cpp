@@ -27,7 +27,7 @@ const uint8_t MAX_BRIGHTNESS = 200;
 
 // Custom channel mapping for the 9 * 7 lightbulbs light rings
 // clang-format off
-const std::vector<uint8_t> CUSTOM_CHANNEL_MAPPING = {
+const std::array<uint8_t, Mcp23s17TriacDriver::MAX_CHANNEL_COUNT> CUSTOM_CHANNEL_MAPPING = {
      8,  9, 10, 11, 12, 13, 14, // K1 (0 -> 6)
     15,  0,  1,  2,  3,  4,  5, // K2 (7 -> 13)
      6,  7, 32, 33, 34, 35, 36, // M1 (14 -> 20)
