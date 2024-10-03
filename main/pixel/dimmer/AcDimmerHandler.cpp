@@ -85,57 +85,51 @@ void AcDimmerHandler::write(const PixelFrame &frame) {
     xSemaphoreGive(backBufferUpdatedSem_);
 }
 
-void AcDimmerHandler::testLightsSequentially() {
+void AcDimmerHandler::testLights() {
     PixelFrame pixelFrame(CHANNEL_COUNT_);
-    int maxBrightness = 70;
-    int frameMillis = 2;
-    ESP_LOGI(TAG, "Turning on lights slowly...");
+    int minBrightness = 10;
+    int maxBrightness = 50;
+    int minBrightnessMillis = 1000;
+    int synchronousFrameMillis = 50;
+    int sequentialFrameMillis = 2;
+
+    ESP_LOGI(TAG, "Fading up lights synchronously from brightness 0 to %d...", maxBrightness);
+    for (int brightness = 0; brightness <= minBrightness; brightness++) {
+        for (int channel = 0; channel < pixelFrame.size(); channel++) {
+            pixelFrame[channel] = Pixel(brightness, brightness, brightness);
+        }
+        write(pixelFrame);
+        delay(synchronousFrameMillis);
+    }
+    delay(minBrightnessMillis);
+
+    ESP_LOGI(TAG, "Fading up lights sequentially from brightness %d to %d...", minBrightness, maxBrightness);
     for (int channel = 0; channel < pixelFrame.size(); channel++) {
-        for (int brightness = 0; brightness <= maxBrightness; brightness++) {
-            pixelFrame[channel].r = brightness;
-            pixelFrame[channel].g = brightness;
-            pixelFrame[channel].b = brightness;
+        for (int brightness = minBrightness; brightness <= maxBrightness; brightness++) {
+            pixelFrame[channel] = Pixel(brightness, brightness, brightness);
             write(pixelFrame);
-            delay(frameMillis);
+            delay(sequentialFrameMillis);
         }
     }
 
-    ESP_LOGI(TAG, "Turning off lights slowly...");
+    ESP_LOGI(TAG, "Fading down lights sequentially from brightness %d to %d...", maxBrightness, minBrightness);
     for (int channel = pixelFrame.size() - 1; channel >= 0; channel--) {
-        for (int brightness = maxBrightness; brightness >= 0; brightness--) {
-            pixelFrame[channel].r = brightness;
-            pixelFrame[channel].g = brightness;
-            pixelFrame[channel].b = brightness;
+        for (int brightness = maxBrightness; brightness >= minBrightness; brightness--) {
+            pixelFrame[channel] = Pixel(brightness, brightness, brightness);
             write(pixelFrame);
-            delay(frameMillis);
+            delay(sequentialFrameMillis);
         }
     }
-}
+    delay(minBrightnessMillis);
 
-void AcDimmerHandler::testLightsSynchronously() {
-    PixelFrame pixelFrame(CHANNEL_COUNT_);
-    int maxBrightness = 70;
-    int frameMillis = 50;
-    ESP_LOGI(TAG, "Turning on lights slowly...");
-    for (int brightness = 0; brightness <= maxBrightness; brightness++) {
+    ESP_LOGI(TAG, "Fading down lights synchronously from brightness %d to 0...", minBrightness);
+    for (int brightness = minBrightness; brightness >= 0; brightness--) {
         for (int channel = 0; channel < pixelFrame.size(); channel++) {
-            pixelFrame[channel].r = brightness;
-            pixelFrame[channel].g = brightness;
-            pixelFrame[channel].b = brightness;
+            pixelFrame[channel] = Pixel(brightness, brightness, brightness);
+            write(pixelFrame);
         }
         write(pixelFrame);
-        delay(frameMillis);
-    }
-
-    ESP_LOGI(TAG, "Turning off lights slowly...");
-    for (int brightness = maxBrightness; brightness >= 0; brightness--) {
-        for (int channel = 0; channel < pixelFrame.size(); channel++) {
-            pixelFrame[channel].r = brightness;
-            pixelFrame[channel].g = brightness;
-            pixelFrame[channel].b = brightness;
-        }
-        write(pixelFrame);
-        delay(frameMillis);
+        delay(synchronousFrameMillis);
     }
 }
 

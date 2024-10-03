@@ -70,8 +70,7 @@ extern "C" void app_main() {
     // --- Pixel handler ---------------------------------------------------------------------------
     Mcp23s17TriacDriver triacDriver(CUSTOM_CHANNEL_MAPPING);
     AcDimmerHandler pixelHandler(CHANNEL_COUNT, ZERO_CROSSING_PIN, TRIAC_TASK_CORE, triacDriver, MAX_BRIGHTNESS);
-    pixelHandler.testLightsSequentially();
-    pixelHandler.testLightsSynchronously();
+    pixelHandler.testLights();
 
     // --- Pixel driver ----------------------------------------------------------------------------
     PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, INTERFACE_TASK_CORE, INTERFACE_TASK_PRIORITY,
