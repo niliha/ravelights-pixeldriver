@@ -22,7 +22,7 @@ AcDimmerHandler::AcDimmerHandler(const int channelCount, const int zeroCrossingP
 
     xTaskCreatePinnedToCore([](void *parameter) { static_cast<AcDimmerHandler *>(parameter)->triacTask(); },
                             "triacTask",
-                            /* stack size */ 4096, this, /* priority */ configMAX_PRIORITIES, NULL,
+                            /* stack size */ 4096, this, /* priority */ configMAX_PRIORITIES - 1, NULL,
                             /* core */ triacTaskCore);
 
     ESP_LOGI(TAG, "AcDimmerHandler initialized on core %d with %d channels and zero crossing pin %d", xPortGetCoreID(),
