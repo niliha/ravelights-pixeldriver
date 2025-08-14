@@ -13,3 +13,9 @@
 [submodule "components/ArduinoJson"]
 	path = components/ArduinoJson
 	url = https://github.com/bblanchon/ArduinoJson.git
+[submodule "components/tlc59711"]
+	path = components/tlc59711
+	url = https://github.com/niliha/Adafruit_TLC59711-idf.git
+[submodule "components/BusIO"]
+	path = components/BusIO
+	url = https://github.com/niliha/Adafruit_BusIO-idf.git
