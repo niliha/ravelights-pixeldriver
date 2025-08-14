@@ -66,7 +66,7 @@ extern "C" void app_main() {
 
     // --- Pixel handler ---------------------------------------------------------------------------
     FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig, BRIGHTNESS);
-    pixelHandler.testLights(PIXELS_PER_LIGHT);
+    pixelHandler.testPixels();
 
     // --- Pixel driver ----------------------------------------------------------------------------
     PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler);
