@@ -15,7 +15,7 @@ const int CHANNEL_COUNT = 12;
 // The instance ID used for mDNS discovery, must be without .local suffix
 const std::string INSTANCE_ID = "pixeldriver-dc-dimmer-1";
 
-// The maximum brightness. 0 = minimum brightness, 255 = maximum brightness
+// 0 = minimum brightness, 255 = maximum brightness
 const uint8_t MAX_BRIGHTNESS = 200;
 
 const int DRIVER_COUNT = 1;
@@ -52,11 +52,11 @@ extern "C" void app_main() {
     // --- Pixel handler ---------------------------------------------------------------------------
     // TODO: Use proper hardware SPI instead of bit banging
     Adafruit_TLC59711 tlc59711(DRIVER_COUNT, SCLK_PIN, MOSI_PIN);
-    DcDimmerHandler pixelHandler(tlc59711, CHANNEL_COUNT, MAX_BRIGHTNESS);
+    DcDimmerHandler pixelHandler(tlc59711, CHANNEL_COUNT);
     pixelHandler.testLights();
 
     // --- Pixel driver ----------------------------------------------------------------------------
-    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler);
+    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, MAX_BRIGHTNESS);
     pixelDriver.start();
 
     while (true) {

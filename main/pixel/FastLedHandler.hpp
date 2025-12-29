@@ -14,7 +14,7 @@
 
 template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedHandler : public AbstractPixelHandler {
  public:
-    FastLedHandler(const OutputConfig &pixelsPerOutput, uint8_t brightness = 255)
+    FastLedHandler(const OutputConfig &pixelsPerOutput)
         : PIXEL_COUNT_(std::accumulate(pixelsPerOutput.begin(), pixelsPerOutput.end(), 0)),
           fastLedPixels_(PIXEL_COUNT_) {
         int pixelOffset = 0;
@@ -43,9 +43,6 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
                 pixelOffset += pixelsPerOutput[i];
             }
         }
-
-        FastLED.setCorrection(TypicalLEDStrip);
-        FastLED.setBrightness(brightness);
     }
 
     virtual void write(const PixelFrame &frame) override {
@@ -58,7 +55,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
 
     void testPixels() {
         ESP_LOGI(TAG, "Testing Pixels...");
-        for (const auto color : std::vector<CRGB>{CRGB::Red, CRGB::Green, CRGB::Blue}) {
+        for (const auto color : std::vector<CRGB>{CRGB::DarkRed, CRGB::DarkGreen, CRGB::DarkBlue}) {
             auto millisBefore = millis();
             FastLED.showColor(color);
             auto passedMillis = millis() - millisBefore;
@@ -74,7 +71,7 @@ template <const std::array<int, 4> &PINS, EOrder RGB_ORDER = RGB> class FastLedH
         ESP_LOGI(TAG, "Testing Lights...");
         assert(PIXEL_COUNT_ % pixelsPerLight == 0);
 
-        const std::vector<CRGB> colors{CRGB::White, CRGB::Red, CRGB::Green, CRGB::Blue};
+        const std::vector<CRGB> colors{CRGB::DarkGray, CRGB::DarkRed, CRGB::DarkGreen, CRGB::DarkBlue};
 
         for (int i = 0; i < 3; i++) {
             int color_index = 0;

@@ -5,14 +5,18 @@
 #include <esp_log.h>
 #include <esp_task.h>
 
+#include <algorithm>
+
 static const char *TAG = "PixelDriver";
 
 PixelDriver::PixelDriver(std::vector<std::shared_ptr<AbstractInterfaceHandler>> &interfaces,
                          BlockingRingBuffer<PixelFrame> &artnetQueue, AbstractPixelHandler &pixelHandler,
-                         int pixelTaskCore, int pixelTaskPriority, int interfaceTaskCore, int interfaceTaskPriority)
-    : INTERFACE_TASK_CORE_(interfaceTaskCore), INTERFACE_TASK_PRIORITY_(interfaceTaskPriority),
-      PIXEL_TASK_CORE_(pixelTaskCore), PIXEL_TASK_PRIORITY_(pixelTaskPriority), pixelHandler_(pixelHandler),
-      interfaces_(interfaces), artnetQueue_(artnetQueue) {
+                         uint8_t maxBrightness, int pixelTaskCore, int pixelTaskPriority, int interfaceTaskCore,
+                         int interfaceTaskPriority)
+    : MAX_BRIGHTNESS_(maxBrightness), INTERFACE_TASK_CORE_(interfaceTaskCore),
+      INTERFACE_TASK_PRIORITY_(interfaceTaskPriority), PIXEL_TASK_CORE_(pixelTaskCore),
+      PIXEL_TASK_PRIORITY_(pixelTaskPriority), pixelHandler_(pixelHandler), interfaces_(interfaces),
+      artnetQueue_(artnetQueue) {
 }
 
 void PixelDriver::start() {
@@ -40,9 +44,26 @@ void PixelDriver::pixelTask() {
         PixelFrame frame;
         artnetQueue_.pop(frame);
 
+        adjustBrightness(frame);
+
         auto millisBeforeShow = millis();
         pixelHandler_.write(frame);
         fpsLogger.notifyFrameShown(millis() - millisBeforeShow);
+    }
+}
+
+void PixelDriver::adjustBrightness(PixelFrame &frame) {
+
+    for (auto &pixel : frame) {
+        uint8_t maxChannel = std::max({pixel.r, pixel.g, pixel.b});
+
+        if (maxChannel > MAX_BRIGHTNESS_) {
+            float scale = static_cast<float>(MAX_BRIGHTNESS_) / static_cast<float>(maxChannel);
+
+            pixel.r = static_cast<uint8_t>(pixel.r * scale);
+            pixel.g = static_cast<uint8_t>(pixel.g * scale);
+            pixel.b = static_cast<uint8_t>(pixel.b * scale);
+        }
     }
 }
 

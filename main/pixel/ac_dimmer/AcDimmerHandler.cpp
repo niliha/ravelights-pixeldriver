@@ -7,9 +7,9 @@
 static const char *TAG = "AcDimmerHandler";
 
 AcDimmerHandler::AcDimmerHandler(const int channelCount, const int zeroCrossingPin, const int triacTaskCore,
-                                 AbstractTriacDriver &triacDriver, const uint8_t maxBrightness)
-    : CHANNEL_COUNT_(channelCount), MAX_BRIGHTNESS_(maxBrightness), zeroCrossingPin_(zeroCrossingPin),
-      triacDriver_(triacDriver), eventIndexQueue_(xQueueCreate(3, sizeof(uint16_t))) {
+                                 AbstractTriacDriver &triacDriver)
+    : CHANNEL_COUNT_(channelCount), zeroCrossingPin_(zeroCrossingPin), triacDriver_(triacDriver),
+      eventIndexQueue_(xQueueCreate(3, sizeof(uint16_t))) {
 
     // Initialize timer and zero crossing interrupt on the same core that will be used for the triac task
     xTaskCreatePinnedToCore(
@@ -53,7 +53,7 @@ void AcDimmerHandler::write(const PixelFrame &frame) {
     std::map<uint32_t, std::vector<std::pair<int, bool>>> channelsByDelay;
     for (int channelIndex = 0; channelIndex < frame.size(); channelIndex++) {
         auto pixel = frame[channelIndex];
-        uint8_t brightness = std::min(std::max({pixel.r, pixel.g, pixel.b}), MAX_BRIGHTNESS_);
+        uint8_t brightness = std::max({pixel.r, pixel.g, pixel.b});
 
         // Make sure TRIAC is not activated if brightness is zero
         if (brightness == 0) {
