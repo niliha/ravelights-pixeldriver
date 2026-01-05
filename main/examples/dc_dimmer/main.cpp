@@ -15,12 +15,14 @@ const int CHANNEL_COUNT = 12;
 // The instance ID used for mDNS discovery, must be without .local suffix
 const std::string INSTANCE_ID = "pixeldriver-dc-dimmer-1";
 
-// The maximum brightness. 0 = minimum brightness, 255 = maximum brightness
-const uint8_t MAX_BRIGHTNESS = 200;
-
 const int DRIVER_COUNT = 1;
 const int SCLK_PIN = 18;
 const int MOSI_PIN = 23;
+
+// PWM Value for TLC69711 can be between 0 and UINT16_MAX.
+// The lower and upper bounds should be set according to the used light bulbs.
+const uint16_t MIN_PWM_VALUE = 0;
+const uint16_t MAX_PWM_VALUE = UINT16_MAX / 2;
 
 extern "C" void app_main() {
     initArduino();
@@ -52,7 +54,7 @@ extern "C" void app_main() {
     // --- Pixel handler ---------------------------------------------------------------------------
     // TODO: Use proper hardware SPI instead of bit banging
     Adafruit_TLC59711 tlc59711(DRIVER_COUNT, SCLK_PIN, MOSI_PIN);
-    DcDimmerHandler pixelHandler(tlc59711, CHANNEL_COUNT, MAX_BRIGHTNESS);
+    DcDimmerHandler pixelHandler(tlc59711, CHANNEL_COUNT, MIN_PWM_VALUE, MAX_PWM_VALUE);
     pixelHandler.testLights();
 
     // --- Pixel driver ----------------------------------------------------------------------------

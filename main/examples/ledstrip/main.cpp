@@ -23,8 +23,8 @@ OutputConfig pixelsPerOutputFallback = {1 * PIXELS_PER_LIGHT, 4 * PIXELS_PER_LIG
 // The order of the R, G and B channel of the used LED strip
 const EOrder RGB_ORDER = EOrder::RGB;
 
-// The brightness scaling factor. 0 = minimum brightness, 255 = maximum brightness
-const uint8_t BRIGHTNESS = 127;
+// 0 = minimum brightness, 255 = maximum brightness
+const uint8_t MAX_BRIGHTNESS = 127;
 
 // The instance ID used for mDNS discovery, must be without .local suffix
 std::string instanceIdFallback = "pixeldriver-box-main";
@@ -65,11 +65,11 @@ extern "C" void app_main() {
     interfaces.push_back(artnetWifi);
 
     // --- Pixel handler ---------------------------------------------------------------------------
-    FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig, BRIGHTNESS);
+    FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig);
     pixelHandler.testPixels();
 
     // --- Pixel driver ----------------------------------------------------------------------------
-    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler);
+    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, MAX_BRIGHTNESS);
     pixelDriver.start();
 
     while (true) {

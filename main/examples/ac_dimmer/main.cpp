@@ -22,7 +22,7 @@ const int PIXEL_TASK_PRIORITY = tskIDLE_PRIORITY;
 // The instance ID used for mDNS discovery, must be without .local suffix
 const std::string INSTANCE_ID = "pixeldriver-dimmer";
 
-// The brightness scaling factor. 0 = minimum brightness, 255 = maximum brightness
+// 0 = minimum brightness, 255 = maximum brightness
 const uint8_t MAX_BRIGHTNESS = 200;
 
 // Custom channel mapping for the 9 * 7 lightbulbs light rings
@@ -69,12 +69,12 @@ extern "C" void app_main() {
 
     // --- Pixel handler ---------------------------------------------------------------------------
     Mcp23s17TriacDriver triacDriver(CUSTOM_CHANNEL_MAPPING);
-    AcDimmerHandler pixelHandler(CHANNEL_COUNT, ZERO_CROSSING_PIN, TRIAC_TASK_CORE, triacDriver, MAX_BRIGHTNESS);
+    AcDimmerHandler pixelHandler(CHANNEL_COUNT, ZERO_CROSSING_PIN, TRIAC_TASK_CORE, triacDriver);
     pixelHandler.testLights();
 
     // --- Pixel driver ----------------------------------------------------------------------------
-    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, INTERFACE_TASK_CORE, INTERFACE_TASK_PRIORITY,
-                            PIXEL_TASK_CORE, PIXEL_TASK_PRIORITY);
+    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, MAX_BRIGHTNESS, INTERFACE_TASK_CORE,
+                            INTERFACE_TASK_PRIORITY, PIXEL_TASK_CORE, PIXEL_TASK_PRIORITY);
     pixelDriver.start();
 
     while (true) {

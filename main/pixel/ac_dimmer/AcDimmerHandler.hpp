@@ -8,7 +8,7 @@
 class AcDimmerHandler : public AbstractPixelHandler {
  public:
     AcDimmerHandler(const int channelCount, const int zeroCrossingPin, const int triacTaskCore,
-                    AbstractTriacDriver &triacDriver, const uint8_t maxBrightness = 255);
+                    AbstractTriacDriver &triacDriver);
     virtual void write(const PixelFrame &frame) override;
 
     void testLights();
@@ -23,7 +23,6 @@ class AcDimmerHandler : public AbstractPixelHandler {
     const int ZERO_CROSSING_DEBOUNCE_MICROS_ = 1000;
     const int CHANNEL_COUNT_;
     const uint8_t MIN_BRIGHTNESS_ = 0;
-    const uint8_t MAX_BRIGHTNESS_;
 
     volatile unsigned long lastZeroCrossingMicros_ = 0;
 
