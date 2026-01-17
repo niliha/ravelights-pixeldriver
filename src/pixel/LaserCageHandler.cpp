@@ -3,7 +3,9 @@
 static const char *TAG = "LaserCageHandler";
 
 LaserCageHandler::LaserCageHandler(int laserCount) : laserCount_(laserCount) {
-    Tlc.init(0);
+    // Tlc.init(0);
+
+    Tlc.init(0, 17, 25, 16, 4, 13, 19);
 }
 
 void LaserCageHandler::write(const PixelFrame &frame) {
@@ -23,9 +25,11 @@ void LaserCageHandler::write(const PixelFrame &frame) {
 
 void LaserCageHandler::testLasers() {
     for (int i = 0; i < laserCount_; i++) {
+        Tlc.clear();
         Tlc.set(i, 4095);
+        Tlc.update();
+        delay(500);
     }
-    Tlc.update();
     /*
     ESP_LOGI(TAG, "Testing Lasers...");
     ledControl_.clearDisplay(0);

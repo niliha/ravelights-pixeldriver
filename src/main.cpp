@@ -69,13 +69,17 @@ extern "C" void app_main() {
     interfaces.push_back(artnetWifi);
 
     // --- Pixel handler ---------------------------------------------------------------------------
-    // LaserCageHandler pixelHandler(outputConfig.getPixelCount());
+    LaserCageHandler pixelHandler(outputConfig.getPixelCount());
 
     // AcDimmerHandler pixelHandler(outputConfig.getPixelCount() /* channel count*/, 4 /* zero crossing pin*/,
     //                              1 /* triac task core */);
 
-    FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig, BRIGHTNESS);
-    pixelHandler.testLights(PIXELS_PER_LIGHT);
+    // FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig, BRIGHTNESS);
+    // pixelHandler.testLights(PIXELS_PER_LIGHT);
+    while (true) {
+        pixelHandler.testLasers();
+        delay(1000);
+    }
 
     PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler);
     pixelDriver.start();
