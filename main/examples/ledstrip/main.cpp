@@ -60,7 +60,7 @@ extern "C" void app_main() {
     auto restApi = std::make_shared<RestApi>(80);
     interfaces.push_back(restApi);
 
-    BlockingRingBuffer<PixelFrame> artnetQueue(3);
+    BlockingRingBuffer<PixelFrame> artnetQueue(1);
     auto artnetWifi = std::make_shared<ArtnetWifiHandler>(artnetQueue, outputConfig.getPixelCount());
     interfaces.push_back(artnetWifi);
 
