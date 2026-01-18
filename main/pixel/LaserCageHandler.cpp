@@ -2,8 +2,9 @@
 
 static const char *TAG = "LaserCageHandler";
 
-LaserCageHandler::LaserCageHandler(int laserCount) : laserCount_(laserCount) {
-    Tlc.init(0);
+LaserCageHandler::LaserCageHandler(int laserCount, int sin, int sclk, int xlat, int blank, int gsclk)
+    : laserCount_(laserCount) {
+    Tlc.init(0, sin, -1, sclk, xlat, blank, gsclk);
 }
 
 void LaserCageHandler::write(const PixelFrame &frame) {
@@ -27,6 +28,6 @@ void LaserCageHandler::testLasers() {
         Tlc.clear();
         Tlc.set(i, 4095);
         Tlc.update();
-        delay(100);
+        delay(250);
     }
 }
