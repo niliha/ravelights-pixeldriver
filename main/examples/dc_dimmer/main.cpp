@@ -45,7 +45,7 @@ extern "C" void app_main() {
     }
 
     // --- Interfaces ------------------------------------------------------------------------------
-    BlockingRingBuffer<PixelFrame> artnetQueue(3);
+    BlockingRingBuffer<PixelFrame> artnetQueue(1);
     auto artnetWifi = std::make_shared<ArtnetWifiHandler>(artnetQueue, CHANNEL_COUNT);
 
     std::vector<std::shared_ptr<AbstractInterfaceHandler>> interfaces;
