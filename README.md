@@ -16,7 +16,7 @@ This is the low-level counterpart to the [ravelights](https://github.com/danuo/r
 # Getting started
 
 * Clone this repository ``--recursive``ly.
-* Install ESP-IDF extension for Visual Studio Code and install ESP-IDF **v5.1.4**.
+* Install ESP-IDF extension for Visual Studio Code and install ESP-IDF **v5.5.1**.
 See [here](https://github.com/espressif/vscode-esp-idf-extension/blob/master/docs/tutorial/install.md) for further instructions.
 
 See the `main/examples` directory for usage examples.

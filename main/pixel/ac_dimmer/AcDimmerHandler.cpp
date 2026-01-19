@@ -29,12 +29,6 @@ AcDimmerHandler::AcDimmerHandler(const int channelCount, const int zeroCrossingP
              CHANNEL_COUNT_, zeroCrossingPin_);
 }
 
-std::vector<uint8_t> AcDimmerHandler::createIdentityChannelMapping(const int channelCount) const {
-    std::vector<uint8_t> channelMapping(channelCount);
-    std::iota(channelMapping.begin(), channelMapping.end(), 0);
-    return channelMapping;
-}
-
 void AcDimmerHandler::setupTimer() {
     eventTimer_ = timerBegin(1 * 1000 * 1000);
     timerAttachInterruptArg(
@@ -93,7 +87,7 @@ void AcDimmerHandler::testLights() {
     int synchronousFrameMillis = 50;
     int sequentialFrameMillis = 2;
 
-    ESP_LOGI(TAG, "Fading up lights synchronously from brightness 0 to %d...", maxBrightness);
+    ESP_LOGI(TAG, "Fading up lights synchronously from brightness 0 to %d...", minBrightness);
     for (int brightness = 0; brightness <= minBrightness; brightness++) {
         for (int channel = 0; channel < pixelFrame.size(); channel++) {
             pixelFrame[channel] = Pixel(brightness, brightness, brightness);
@@ -126,7 +120,6 @@ void AcDimmerHandler::testLights() {
     for (int brightness = minBrightness; brightness >= 0; brightness--) {
         for (int channel = 0; channel < pixelFrame.size(); channel++) {
             pixelFrame[channel] = Pixel(brightness, brightness, brightness);
-            write(pixelFrame);
         }
         write(pixelFrame);
         delay(synchronousFrameMillis);

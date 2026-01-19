@@ -37,7 +37,6 @@ class AcDimmerHandler : public AbstractPixelHandler {
     SemaphoreHandle_t backBufferUpdatedSem_ = xSemaphoreCreateBinary();
     SemaphoreHandle_t backBufferMutex_ = xSemaphoreCreateMutex();
 
-    std::vector<uint8_t> createIdentityChannelMapping(const int channelCount) const;
     void triacTask();
     void onTimerAlarm();
     void onZeroCrossing();
