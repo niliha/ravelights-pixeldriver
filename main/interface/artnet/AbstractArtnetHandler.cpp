@@ -15,8 +15,16 @@ void AbstractArtnetHandler::onDmxFrame(uint16_t universeIndex, uint16_t length, 
         return;
     }
 
+    // Reset frame when universe 0 is received again, since this must belong to the next frame
+    if (universeIndex == 0 && !receivedUniverses_.empty() &&
+        receivedUniverses_.size() != static_cast<size_t>(UNIVERSE_COUNT_)) {
+        receivedUniverses_.clear();
+        resetCount_++;
+    }
+
     if (receivedUniverses_.find(universeIndex) != receivedUniverses_.end()) {
-        duplicateUniverseCount_++;
+        receivedUniverses_.clear();
+        resetCount_++;
         return;
     }
 
@@ -36,9 +44,9 @@ void AbstractArtnetHandler::onDmxFrame(uint16_t universeIndex, uint16_t length, 
         // Reset information about received universes
         receivedUniverses_.clear();
 
-        if (duplicateUniverseCount_ > 0) {
-            ESP_LOGW(TAG, "Received %d duplicate universes since the last frame", duplicateUniverseCount_);
-            duplicateUniverseCount_ = 0;
+        if (resetCount_ > 0) {
+            ESP_LOGW(TAG, "Resetted frame %d time(s) since the last frame", resetCount_);
+            resetCount_ = 0;
         }
     }
 }

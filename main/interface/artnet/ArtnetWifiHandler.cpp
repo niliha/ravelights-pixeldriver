@@ -20,5 +20,7 @@ void ArtnetWifiHandler::start() {
 
 void ArtnetWifiHandler::handleReceived() {
     // This functions calls onDmxFrame() whenever a ArtDMX packet is received
-    artnetWifi_.read();
+    while (artnetWifi_.read() != 0) {
+        // Drain all pending packets to reduce UDP backlog.
+    }
 }
