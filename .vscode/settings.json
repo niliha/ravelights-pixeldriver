@@ -77,5 +77,8 @@
         "typeindex": "cpp",
         "typeinfo": "cpp",
         "variant": "cpp"
-    }
+    },
+    "idf.espIdfPath": "/home/nick/esp/v5.3.2/esp-idf",
+    "idf.toolsPath": "/home/nick/.espressif",
+    "idf.pythonInstallPath": "/usr/bin/python"
 }
