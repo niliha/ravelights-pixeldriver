@@ -9,7 +9,7 @@
 static const char *TAG = "main";
 
 // --- Config --------------------------------------------------------------------------------------
-const int CHANNEL_COUNT = 4 * 16;
+const int CHANNEL_COUNT = 22;
 
 const int TLC5940_SIN_PIN = 17;
 const int TLC5940_SCLK_PIN = 16;
