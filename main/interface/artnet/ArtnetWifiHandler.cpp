@@ -1,4 +1,5 @@
 #include "ArtnetWifiHandler.hpp"
+#include <esp_wifi.h>
 
 #include <ESPmDNS.h>
 
@@ -9,7 +10,12 @@ ArtnetWifiHandler::ArtnetWifiHandler(BlockingRingBuffer<PixelFrame> &frameQueue,
     artnetWifi_.setArtDmxFunc([this](uint16_t universeIndex, uint16_t length, uint8_t sequence, uint8_t *data) {
         this->onDmxFrame(universeIndex, length, sequence, data);
     });
-    WiFi.setSleep(false);  // Improves UDP throughput drastically
+
+    // Improves UDP throughput drastically
+    esp_err_t err = esp_wifi_set_ps(WIFI_PS_NONE);
+    if (err != ESP_OK) {
+        log_e("esp_wifi_set_ps failed!: 0x%x: %s", err, esp_err_to_name(err));
+    }
 }
 
 void ArtnetWifiHandler::start() {
