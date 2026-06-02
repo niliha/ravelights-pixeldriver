@@ -1,6 +1,7 @@
 #include <ESPmDNS.h>
 
 #include "PixelDriver.hpp"
+#include "config/PersistentStorage.hpp"
 #include "interface/artnet/ArtnetWifiHandler.hpp"
 #include "network/NetworkUtil.hpp"
 #include "network/WifiCredentials.hpp"
@@ -13,7 +14,7 @@ static const char *TAG = "main";
 const int CHANNEL_COUNT = 12;
 
 // The instance ID used for mDNS discovery, must be without .local suffix
-const std::string INSTANCE_ID = "pixeldriver-dc-dimmer-1";
+const std::string instanceIdFallback = "pixeldriver-dc-dimmer-1";
 
 const int DRIVER_COUNT = 1;
 const int SCLK_PIN = 18;
@@ -31,16 +32,20 @@ extern "C" void app_main() {
     esp_log_level_set("wifi", ESP_LOG_WARN);
     esp_log_level_set("gpio", ESP_LOG_WARN);
 
+    // --- Persistent storage ----------------------------------------------------------------------
+    // PersistentStorage::clear();
+    auto instanceId = PersistentStorage::loadOrStoreFallbackInstanceId(instanceIdFallback);
+
     // --- Network ---------------------------------------------------------------------------------
     if (!NetworkUtil::connectToWifi(WifiCredentials::ssid, WifiCredentials::password)) {
         ESP_LOGE(TAG, "Rebooting because connecting to wifi with SSID %s failed", WifiCredentials::ssid.c_str());
         ESP.restart();
     }
 
-    if (MDNS.begin(INSTANCE_ID.c_str())) {
-        ESP_LOGI(TAG, "Started mDNS responder for instance id %s", INSTANCE_ID.c_str());
+    if (MDNS.begin(instanceId.c_str())) {
+        ESP_LOGI(TAG, "Started mDNS responder for instance id %s", instanceId.c_str());
     } else {
-        ESP_LOGE(TAG, "Rebooting because starting mDNS responder for instance id %s failed", INSTANCE_ID.c_str());
+        ESP_LOGE(TAG, "Rebooting because starting mDNS responder for instance id %s failed", instanceId.c_str());
         ESP.restart();
     }
 
