@@ -6,17 +6,19 @@
 #include <esp_task.h>
 
 #include <algorithm>
+#include <numeric>
 
 static const char *TAG = "PixelDriver";
 
 PixelDriver::PixelDriver(std::vector<std::shared_ptr<AbstractInterfaceHandler>> &interfaces,
-                         BlockingRingBuffer<PixelFrame> &artnetQueue, AbstractPixelHandler &pixelHandler,
-                         uint8_t maxBrightness, int pixelTaskCore, int pixelTaskPriority, int interfaceTaskCore,
-                         int interfaceTaskPriority)
-    : MAX_BRIGHTNESS_(maxBrightness), INTERFACE_TASK_CORE_(interfaceTaskCore),
-      INTERFACE_TASK_PRIORITY_(interfaceTaskPriority), PIXEL_TASK_CORE_(pixelTaskCore),
-      PIXEL_TASK_PRIORITY_(pixelTaskPriority), pixelHandler_(pixelHandler), interfaces_(interfaces),
-      artnetQueue_(artnetQueue) {
+                         BlockingRingBuffer<PixelFrame> &artnetQueue,
+                         std::vector<std::shared_ptr<AbstractPixelHandler>> handlers,
+                         int interfaceTaskCore, int interfaceTaskPriority, int pixelTaskCore, int pixelTaskPriority)
+    : INTERFACE_TASK_CORE_(interfaceTaskCore), INTERFACE_TASK_PRIORITY_(interfaceTaskPriority),
+      PIXEL_TASK_CORE_(pixelTaskCore), PIXEL_TASK_PRIORITY_(pixelTaskPriority), handlers_(std::move(handlers)),
+      interfaces_(interfaces), artnetQueue_(artnetQueue) {
+    TOTAL_PIXEL_COUNT_ = std::accumulate(handlers_.begin(), handlers_.end(), size_t{0},
+                                         [](size_t sum, const auto &handler) { return sum + handler->pixelCount(); });
 }
 
 void PixelDriver::start() {
@@ -43,22 +45,29 @@ void PixelDriver::pixelTask() {
     while (true) {
         PixelFrame frame;
         artnetQueue_.pop(frame);
-
-        adjustBrightness(frame);
+        assert(frame.size() == TOTAL_PIXEL_COUNT_);
 
         auto millisBeforeShow = millis();
-        pixelHandler_.write(frame);
+
+        size_t offset = 0;
+        for (const auto &handler : handlers_) {
+            size_t count = handler->pixelCount();
+            std::span<Pixel> region(frame.data() + offset, count);
+            adjustBrightness(region, handler->maxBrightness());
+            handler->write(region);
+            offset += count;
+        }
+
         fpsLogger.notifyFrameShown(millis() - millisBeforeShow);
     }
 }
 
-void PixelDriver::adjustBrightness(PixelFrame &frame) {
-
-    for (auto &pixel : frame) {
+void PixelDriver::adjustBrightness(std::span<Pixel> pixels, uint8_t maxBrightness) {
+    for (auto &pixel : pixels) {
         uint8_t maxChannel = std::max({pixel.r, pixel.g, pixel.b});
 
-        if (maxChannel > MAX_BRIGHTNESS_) {
-            float scale = static_cast<float>(MAX_BRIGHTNESS_) / static_cast<float>(maxChannel);
+        if (maxChannel > maxBrightness) {
+            float scale = static_cast<float>(maxBrightness) / static_cast<float>(maxChannel);
 
             pixel.r = static_cast<uint8_t>(pixel.r * scale);
             pixel.g = static_cast<uint8_t>(pixel.g * scale);

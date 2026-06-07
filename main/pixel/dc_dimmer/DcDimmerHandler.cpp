@@ -5,16 +5,17 @@
 static const char *TAG = "DcDimmerHandler";
 
 DcDimmerHandler::DcDimmerHandler(Adafruit_TLC59711 &tlc59711, const int lightCount, const uint16_t minPwmValue,
-                                 const uint16_t maxPwmValue)
-    : lightCount_(lightCount), minPwmValue_(minPwmValue), maxPwmValue_(maxPwmValue), tlc59711_(tlc59711) {
+                                 const uint16_t maxPwmValue, uint8_t maxBrightness)
+    : AbstractPixelHandler(maxBrightness), lightCount_(lightCount), minPwmValue_(minPwmValue),
+      maxPwmValue_(maxPwmValue), tlc59711_(tlc59711) {
     tlc59711_.begin();
 }
 
-void DcDimmerHandler::write(const PixelFrame &frame) {
-    assert(frame.size() == lightCount_);
+void DcDimmerHandler::write(std::span<const Pixel> pixels) {
+    assert(pixels.size() == static_cast<size_t>(lightCount_));
 
-    for (int i = 0; i < frame.size(); i++) {
-        auto pixel = frame[i];
+    for (size_t i = 0; i < pixels.size(); i++) {
+        auto pixel = pixels[i];
         uint8_t brightness = std::max({pixel.r, pixel.g, pixel.b});
         uint16_t pwmValue = map(brightness, 0, UINT8_MAX, minPwmValue_, maxPwmValue_);
 

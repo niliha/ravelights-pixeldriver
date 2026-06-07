@@ -25,6 +25,9 @@ const int MOSI_PIN = 23;
 const uint16_t MIN_PWM_VALUE = 0;
 const uint16_t MAX_PWM_VALUE = UINT16_MAX / 2;
 
+// 0 = minimum brightness, 255 = maximum brightness
+const uint8_t MAX_BRIGHTNESS = 255;
+
 extern "C" void app_main() {
     initArduino();
     Serial.begin(115200);
@@ -49,25 +52,25 @@ extern "C" void app_main() {
         ESP.restart();
     }
 
-    // --- Interfaces ------------------------------------------------------------------------------
-    BlockingRingBuffer<PixelFrame> artnetQueue(1);
-    auto artnetWifi = std::make_shared<ArtnetWifiHandler>(artnetQueue, CHANNEL_COUNT);
-
-    std::vector<std::shared_ptr<AbstractInterfaceHandler>> interfaces;
-    interfaces.push_back(artnetWifi);
-
     // --- Pixel handler ---------------------------------------------------------------------------
     // TODO: Use proper hardware SPI instead of bit banging
     Adafruit_TLC59711 tlc59711(DRIVER_COUNT, SCLK_PIN, MOSI_PIN);
-    DcDimmerHandler pixelHandler(tlc59711, CHANNEL_COUNT, MIN_PWM_VALUE, MAX_PWM_VALUE);
-    pixelHandler.testLights();
+    auto pixelHandler =
+        std::make_shared<DcDimmerHandler>(tlc59711, CHANNEL_COUNT, MIN_PWM_VALUE, MAX_PWM_VALUE, MAX_BRIGHTNESS);
+    pixelHandler->testLights();
+
+    // --- Interfaces ------------------------------------------------------------------------------
+    BlockingRingBuffer<PixelFrame> artnetQueue(1);
+
+    std::vector<std::shared_ptr<AbstractInterfaceHandler>> interfaces;
+    interfaces.push_back(std::make_shared<ArtnetWifiHandler>(artnetQueue, pixelHandler->pixelCount()));
 
     // --- Pixel driver ----------------------------------------------------------------------------
-    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler);
+    PixelDriver pixelDriver(interfaces, artnetQueue, {pixelHandler});
     pixelDriver.start();
 
     while (true) {
         // Stay in app_main() such that stack frame is not popped
-        delay(1000);
+        f delay(1000);
     }
 }

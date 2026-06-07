@@ -8,8 +8,9 @@
 class AcDimmerHandler : public AbstractPixelHandler {
  public:
     AcDimmerHandler(const int channelCount, const int zeroCrossingPin, const int triacTaskCore,
-                    AbstractTriacDriver &triacDriver);
-    virtual void write(const PixelFrame &frame) override;
+                    AbstractTriacDriver &triacDriver, uint8_t maxBrightness = 255);
+    size_t pixelCount() const override { return CHANNEL_COUNT_; }
+    virtual void write(std::span<const Pixel> pixels) override;
 
     void testLights();
 

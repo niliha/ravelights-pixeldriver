@@ -84,5 +84,6 @@
   "idf.customExtraVars": {
     "OPENOCD_SCRIPTS": "/home/nick/.espressif/tools/openocd-esp32/v0.12.0-esp32-20230921/openocd-esp32/share/openocd/scripts",
     "ESP_ROM_ELF_DIR": "/home/nick/.espressif/tools/esp-rom-elfs/20230320/"
-  }
+  },
+  "idf.currentSetup": "/home/nick/esp/v5.5.2/esp-idf"
 }

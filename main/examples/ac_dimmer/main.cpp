@@ -60,21 +60,21 @@ extern "C" void app_main() {
         ESP.restart();
     }
 
-    // --- Interfaces ------------------------------------------------------------------------------
-    BlockingRingBuffer<PixelFrame> artnetQueue(1);
-    auto artnetWifi = std::make_shared<ArtnetWifiHandler>(artnetQueue, CHANNEL_COUNT);
-
-    std::vector<std::shared_ptr<AbstractInterfaceHandler>> interfaces;
-    interfaces.push_back(artnetWifi);
-
     // --- Pixel handler ---------------------------------------------------------------------------
     Mcp23s17TriacDriver triacDriver(CUSTOM_CHANNEL_MAPPING);
-    AcDimmerHandler pixelHandler(CHANNEL_COUNT, ZERO_CROSSING_PIN, TRIAC_TASK_CORE, triacDriver);
-    pixelHandler.testLights();
+    auto pixelHandler = std::make_shared<AcDimmerHandler>(CHANNEL_COUNT, ZERO_CROSSING_PIN, TRIAC_TASK_CORE,
+                                                          triacDriver, MAX_BRIGHTNESS);
+    pixelHandler->testLights();
+
+    // --- Interfaces ------------------------------------------------------------------------------
+    BlockingRingBuffer<PixelFrame> artnetQueue(1);
+
+    std::vector<std::shared_ptr<AbstractInterfaceHandler>> interfaces;
+    interfaces.push_back(std::make_shared<ArtnetWifiHandler>(artnetQueue, pixelHandler->pixelCount()));
 
     // --- Pixel driver ----------------------------------------------------------------------------
-    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, MAX_BRIGHTNESS, INTERFACE_TASK_CORE,
-                            INTERFACE_TASK_PRIORITY, PIXEL_TASK_CORE, PIXEL_TASK_PRIORITY);
+    PixelDriver pixelDriver(interfaces, artnetQueue, {pixelHandler}, INTERFACE_TASK_CORE, INTERFACE_TASK_PRIORITY,
+                            PIXEL_TASK_CORE, PIXEL_TASK_PRIORITY);
     pixelDriver.start();
 
     while (true) {

@@ -15,8 +15,9 @@
 template <const std::array<int, OutputConfig::OUTPUT_COUNT> &Pins, EOrder RgbOrder = RGB>
 class FastLedHandler : public AbstractPixelHandler {
  public:
-    FastLedHandler(const OutputConfig &pixelsPerOutput)
-        : pixelCount_(pixelsPerOutput.getPixelCount()), fastLedPixels_(pixelCount_) {
+    FastLedHandler(const OutputConfig &pixelsPerOutput, uint8_t maxBrightness = 255)
+        : AbstractPixelHandler(maxBrightness), pixelCount_(pixelsPerOutput.getPixelCount()),
+          fastLedPixels_(pixelCount_) {
         int pixelOffset = 0;
         pixelOffset += addLedsOnPin<Pins[0]>(pixelsPerOutput[0], pixelOffset);
         pixelOffset += addLedsOnPin<Pins[1]>(pixelsPerOutput[1], pixelOffset);
@@ -24,9 +25,11 @@ class FastLedHandler : public AbstractPixelHandler {
         pixelOffset += addLedsOnPin<Pins[3]>(pixelsPerOutput[3], pixelOffset);
     }
 
-    virtual void write(const PixelFrame &frame) override {
-        assert(frame.size() == fastLedPixels_.size());
-        std::transform(frame.begin(), frame.end(), fastLedPixels_.begin(),
+    size_t pixelCount() const override { return pixelCount_; }
+
+    virtual void write(std::span<const Pixel> pixels) override {
+        assert(pixels.size() == fastLedPixels_.size());
+        std::transform(pixels.begin(), pixels.end(), fastLedPixels_.begin(),
                        [](Pixel pixel) { return CRGB(pixel.r, pixel.g, pixel.b); });
 
         FastLED.show();

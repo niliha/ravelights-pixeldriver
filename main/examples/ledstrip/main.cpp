@@ -54,22 +54,19 @@ extern "C" void app_main() {
         ESP.restart();
     }
 
-    // --- Interfaces ------------------------------------------------------------------------------
-    std::vector<std::shared_ptr<AbstractInterfaceHandler>> interfaces;
-
-    auto restApi = std::make_shared<RestApi>(80);
-    interfaces.push_back(restApi);
-
-    BlockingRingBuffer<PixelFrame> artnetQueue(1);
-    auto artnetWifi = std::make_shared<ArtnetWifiHandler>(artnetQueue, outputConfig.getPixelCount());
-    interfaces.push_back(artnetWifi);
-
     // --- Pixel handler ---------------------------------------------------------------------------
-    FastLedHandler<OUTPUT_PINS, RGB_ORDER> pixelHandler(outputConfig);
-    pixelHandler.testPixels();
+    auto pixelHandler = std::make_shared<FastLedHandler<OUTPUT_PINS, RGB_ORDER>>(outputConfig, MAX_BRIGHTNESS);
+    pixelHandler->testPixels();
+
+    // --- Interfaces ------------------------------------------------------------------------------
+    BlockingRingBuffer<PixelFrame> artnetQueue(1);
+
+    std::vector<std::shared_ptr<AbstractInterfaceHandler>> interfaces;
+    interfaces.push_back(std::make_shared<RestApi>(80));
+    interfaces.push_back(std::make_shared<ArtnetWifiHandler>(artnetQueue, pixelHandler->pixelCount()));
 
     // --- Pixel driver ----------------------------------------------------------------------------
-    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler, MAX_BRIGHTNESS);
+    PixelDriver pixelDriver(interfaces, artnetQueue, {pixelHandler});
     pixelDriver.start();
 
     while (true) {

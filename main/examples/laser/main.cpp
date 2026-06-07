@@ -40,21 +40,19 @@ extern "C" void app_main() {
         ESP.restart();
     }
 
+    // --- Pixel handler ---------------------------------------------------------------------------
+    auto pixelHandler = std::make_shared<LaserCageHandler>(CHANNEL_COUNT, TLC5940_SIN_PIN, TLC5940_SCLK_PIN,
+                                                           TLC5940_XLAT_PIN, TLC5940_BLANK_PIN, TLC5940_GSCLK_PIN);
+    pixelHandler->testLasers();
+
     // --- Interfaces ------------------------------------------------------------------------------
     BlockingRingBuffer<PixelFrame> artnetQueue(1);
-    auto artnetWifi = std::make_shared<ArtnetWifiHandler>(artnetQueue, CHANNEL_COUNT);
 
     std::vector<std::shared_ptr<AbstractInterfaceHandler>> interfaces;
-    interfaces.push_back(artnetWifi);
-
-    // --- Pixel handler ---------------------------------------------------------------------------
-    LaserCageHandler pixelHandler(CHANNEL_COUNT, TLC5940_SIN_PIN, TLC5940_SCLK_PIN, TLC5940_XLAT_PIN, TLC5940_BLANK_PIN,
-                                  TLC5940_GSCLK_PIN);
-
-    pixelHandler.testLasers();
+    interfaces.push_back(std::make_shared<ArtnetWifiHandler>(artnetQueue, pixelHandler->pixelCount()));
 
     // --- Pixel driver ----------------------------------------------------------------------------
-    PixelDriver pixelDriver(interfaces, artnetQueue, pixelHandler);
+    PixelDriver pixelDriver(interfaces, artnetQueue, {pixelHandler});
     pixelDriver.start();
 
     while (true) {

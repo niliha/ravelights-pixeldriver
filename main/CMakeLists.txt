@@ -1,6 +1,7 @@
 # Select the example to compile
 # set(example_main "examples/dc_dimmer/main.cpp")
-set(example_main "examples/ledstrip/main.cpp")
+# set(example_main "examples/ledstrip/main.cpp")
+set(example_main "examples/ledstrip_and_dc_dimmer/main.cpp")
 # set(example_main "examples/ac_dimmer/main.cpp")
 # set(example_main "examples/laser/main.cpp")
 
