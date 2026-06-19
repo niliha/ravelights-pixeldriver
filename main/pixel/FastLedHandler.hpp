@@ -25,7 +25,9 @@ class FastLedHandler : public AbstractPixelHandler {
         pixelOffset += addLedsOnPin<Pins[3]>(pixelsPerOutput[3], pixelOffset);
     }
 
-    size_t pixelCount() const override { return pixelCount_; }
+    size_t pixelCount() const override {
+        return pixelCount_;
+    }
 
     virtual void write(std::span<const Pixel> pixels) override {
         assert(pixels.size() == fastLedPixels_.size());

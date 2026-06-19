@@ -10,3 +10,6 @@ project(ravelights-pixeldriver)
 # esp-rainmaker dependency throws a string truncation warning that is treated as an error when the compiler
 # optimization level is set to -O2 (optimize for performance).
 idf_build_set_property(C_COMPILE_OPTIONS "-Wno-error=stringop-truncation" APPEND)
+
+# Use the legacy RMT driver for FastLED (ESP-IDF 5.0+ defaults to RMT5 which is incompatible)
+idf_build_set_property(COMPILE_DEFINITIONS "FASTLED_RMT5=0" APPEND)

@@ -12,15 +12,16 @@
 #define CLOCKLESS_CHIPSET WS2812
 #endif
 
-template <int Pin, EOrder RgbOrder = RGB>
-class SinglePinFastLedHandler : public AbstractPixelHandler {
+template <int Pin, EOrder RgbOrder = RGB> class SinglePinFastLedHandler : public AbstractPixelHandler {
  public:
     SinglePinFastLedHandler(size_t pixelCount, uint8_t maxBrightness = 255)
         : AbstractPixelHandler(maxBrightness), pixelCount_(pixelCount), fastLedPixels_(pixelCount) {
         FastLED.addLeds<CLOCKLESS_CHIPSET, Pin, RgbOrder>(fastLedPixels_.data(), 0, pixelCount);
     }
 
-    size_t pixelCount() const override { return pixelCount_; }
+    size_t pixelCount() const override {
+        return pixelCount_;
+    }
 
     void write(std::span<const Pixel> pixels) override {
         assert(pixels.size() == pixelCount_);
